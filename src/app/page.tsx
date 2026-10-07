@@ -8,7 +8,6 @@ interface Squadra {
   id: string
   nome_squadra: string
   categoria: string
-  colore_maglia?: string
 }
 
 export default function Home() {
@@ -19,29 +18,20 @@ export default function Home() {
 
   useEffect(() => {
     const loadSquadre = async () => {
-      const { data, error } = await supabase
-        .from('squadre')
-        .select('*')
-        .order('categoria', { ascending: true })
-        .then(({ data, error }) => ({ data, error }))
-      
-      // Fallback se la query sopra non funziona
       const { data: squadreData } = await supabase
         .from('squadre')
         .select('*')
-        .order('categoria')
       
       if (squadreData) {
-        setSquadre(squadreData as Squadra[])
-        // Ordina le squadre nell'ordine desiderato: Esordienti → Pulcini → Primi Calci
-const ordineCategorie = ['Esordienti', 'Pulcini', 'Primi Calci']
-const squadreOrdinate = squadreData.sort((a: Squadra, b: Squadra) => {
-  const ordineA = ordineCategorie.indexOf(a.categoria)
-  const ordineB = ordineCategorie.indexOf(b.categoria)
-  if (ordineA !== ordineB) return ordineA - ordineB
-  return a.nome_squadra.localeCompare(b.nome_squadra)
-})
-setSquadre(squadreOrdinate)
+        // Ordina: Esordienti → Pulcini → Primi Calci
+        const ordineCategorie = ['Esordienti', 'Pulcini', 'Primi Calci', 'Juniores', 'Allievi', 'Prima Squadra']
+        const squadreOrdinate = [...squadreData].sort((a: Squadra, b: Squadra) => {
+          const ordineA = ordineCategorie.indexOf(a.categoria)
+          const ordineB = ordineCategorie.indexOf(b.categoria)
+          if (ordineA !== ordineB) return ordineA - ordineB
+          return a.nome_squadra.localeCompare(b.nome_squadra)
+        })
+        setSquadre(squadreOrdinate as Squadra[])
       }
       setLoading(false)
     }
@@ -49,165 +39,174 @@ setSquadre(squadreOrdinate)
   }, [])
 
   const selezionaSquadra = (squadra: Squadra) => {
-    // Salva la squadra selezionata nel browser
     localStorage.setItem('squadra_selezionata_id', squadra.id)
     localStorage.setItem('squadra_selezionata_nome', squadra.nome_squadra)
     localStorage.setItem('squadra_selezionata_categoria', squadra.categoria)
-    
-    // Vai alla dashboard
     router.push('/dashboard')
   }
 
-  return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f8fafc',
-      padding: '20px'
-    }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <div style={{ 
-          textAlign: 'center', 
-          marginBottom: '30px',
-          padding: '30px 20px',
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-          borderRadius: '12px',
-          color: 'white'
-        }}>
-          <h1 style={{ fontSize: '32px', margin: '0 0 10px 0' }}>
-            P.S.G. Molteno Brongio
-          </h1>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: '18px' }}>
-            Seleziona la tua squadra
-          </p>
-        </div>
+  // Raggruppa squadre per categoria
+  const squadrePerCategoria = squadre.reduce((acc, squadra) => {
+    if (!acc[squadra.categoria]) acc[squadra.categoria] = []
+    acc[squadra.categoria].push(squadra)
+    return acc
+  }, {} as Record<string, Squadra[]>)
 
-        {/* Lista Squadre */}
+  const ordineCategorie = ['Esordienti', 'Pulcini', 'Primi Calci', 'Juniores', 'Allievi', 'Prima Squadra']
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '#F2F2F7' }}>
+      
+      {/* Header stile iOS con blur */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'rgba(242, 242, 247, 0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+        padding: '12px 16px',
+      }}>
+        <h1 style={{
+          fontSize: '34px',
+          fontWeight: '700',
+          margin: 0,
+          color: '#000000',
+          letterSpacing: '-0.5px',
+        }}>
+          Squadre
+        </h1>
+        <p style={{
+          fontSize: '15px',
+          color: '#8E8E93',
+          margin: '4px 0 0 0',
+        }}>
+          P.S.G. Molteno Brongio
+        </p>
+      </div>
+
+      {/* Contenuto */}
+      <div style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>
+        
         {loading ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '40px',
-            color: '#64748b',
-            fontSize: '18px'
-          }}>
-            Caricamento squadre...
+          <div style={{ textAlign: 'center', padding: '40px', color: '#8E8E93' }}>
+            Caricamento...
           </div>
-        ) : squadre.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '40px',
-            background: 'white',
-            borderRadius: '10px',
-            color: '#64748b'
+        ) : Object.keys(squadrePerCategoria).length === 0 ? (
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '40px 20px',
+            textAlign: 'center',
+            color: '#8E8E93',
           }}>
-            <p style={{ fontSize: '18px', margin: '0 0 10px 0' }}>
-              Nessuna squadra trovata
-            </p>
-            <p style={{ margin: 0 }}>
-              Contatta l'amministratore per aggiungere le squadre
-            </p>
+            Nessuna squadra disponibile
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {squadre.map(squadra => (
-              <button
-                key={squadra.id}
-                onClick={() => selezionaSquadra(squadra)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '20px',
-                  background: 'white',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  textAlign: 'left',
-                  width: '100%'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6'
-                  e.currentTarget.style.transform = 'translateY(-2px)'
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.2)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#e2e8f0'
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                {/* Icona squadra */}
-                <div style={{
-                  width: '60px',
-                  height: '60px',
-                  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  marginRight: '20px',
-                  flexShrink: 0
-                }}>
-                  ⚽
-                </div>
+          ordineCategorie
+            .filter(cat => squadrePerCategoria[cat])
+            .map(categoria => (
+              <div key={categoria} style={{ marginBottom: '24px' }}>
                 
-                {/* Info squadra */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ 
-                    fontSize: '20px', 
-                    fontWeight: 'bold', 
-                    color: '#1e293b',
-                    marginBottom: '5px'
-                  }}>
-                    {squadra.nome_squadra}
-                  </div>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    color: '#64748b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span style={{
-                      padding: '4px 10px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 'bold'
-                    }}>
-                      {squadra.categoria}
-                    </span>
-                  </div>
+                {/* Titolo categoria stile iOS */}
+                <div style={{
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: '#8E8E93',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '0 16px',
+                  marginBottom: '8px',
+                }}>
+                  {categoria}
                 </div>
 
-                {/* Freccia */}
-                <div style={{ 
-                  fontSize: '24px', 
-                  color: '#94a3b8',
-                  marginLeft: '10px'
+                {/* Lista squadre stile iOS */}
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
                 }}>
-                  →
+                  {squadrePerCategoria[categoria].map((squadra, index) => (
+                    <button
+                      key={squadra.id}
+                      onClick={() => selezionaSquadra(squadra)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        width: '100%',
+                        padding: '14px 16px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: index < squadrePerCategoria[categoria].length - 1 
+                          ? '0.5px solid rgba(0,0,0,0.1)' 
+                          : 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F2F2F7'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {/* Icona squadra */}
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        marginRight: '14px',
+                        flexShrink: 0,
+                        boxShadow: '0 2px 4px rgba(0,122,255,0.3)',
+                      }}>
+                        ⚽
+                      </div>
+
+                      {/* Nome squadra */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '17px',
+                          fontWeight: '500',
+                          color: '#000000',
+                          marginBottom: '2px',
+                        }}>
+                          {squadra.nome_squadra}
+                        </div>
+                        <div style={{
+                          fontSize: '13px',
+                          color: '#8E8E93',
+                        }}>
+                          {squadra.categoria}
+                        </div>
+                      </div>
+
+                      {/* Freccia iOS */}
+                      <div style={{
+                        color: '#C7C7CC',
+                        fontSize: '20px',
+                        fontWeight: '300',
+                      }}>
+                        ›
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              </button>
-            ))}
-          </div>
+              </div>
+            ))
         )}
 
-        {/* Footer info */}
+        {/* Footer */}
         <div style={{
           textAlign: 'center',
-          marginTop: '30px',
           padding: '20px',
-          color: '#94a3b8',
-          fontSize: '14px'
+          color: '#8E8E93',
+          fontSize: '13px',
         }}>
-          <p>La squadra selezionata verrà memorizzata</p>
-          <p>per facilitare l'accesso nelle prossime visite</p>
+          La squadra selezionata verrà memorizzata
         </div>
       </div>
     </div>
