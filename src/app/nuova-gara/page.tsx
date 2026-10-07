@@ -77,95 +77,207 @@ export default function NuovaGaraPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    border: 'none',
+    fontSize: '17px',
+    background: 'transparent',
+    color: '#000000',
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    letterSpacing: '0.3px',
+    marginBottom: '4px',
+    display: 'block',
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '20px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F2F2F7' }}>
+      
+      {/* Header */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'rgba(242, 242, 247, 0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+        padding: '12px 16px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/dashboard" style={{
+            color: '#007AFF',
+            textDecoration: 'none',
+            fontSize: '17px',
+            fontWeight: '400',
+          }}>
+            ← Annulla
+          </Link>
+          <h1 style={{
+            fontSize: '17px',
+            fontWeight: '600',
+            margin: 0,
+            color: '#000000',
+          }}>
+            Nuova Partita
+          </h1>
+          <div style={{ width: '70px' }}></div>
+        </div>
+      </div>
+
+      <div style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <Link href="/dashboard" style={{ marginRight: '15px', fontSize: '24px', textDecoration: 'none', color: '#1e3a8a' }}>←</Link>
-          <h1 style={{ color: '#1e3a8a', fontSize: '24px', margin: 0 }}>Nuova Partita</h1>
-        </div>
-
-        {/* Info squadra selezionata */}
+        {/* Info squadra */}
         <div style={{
-          padding: '15px',
-          background: '#dbeafe',
-          borderRadius: '10px',
-          marginBottom: '20px',
-          border: '1px solid #93c5fd'
+          backgroundColor: '#E3F2FD',
+          borderRadius: '12px',
+          padding: '14px 16px',
+          marginBottom: '16px',
+          border: '1px solid #90CAF9',
         }}>
-          <div style={{ fontSize: '12px', color: '#1e40af', marginBottom: '4px' }}>SQUADRA</div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>
-            {squadraInfo.nome} <span style={{ fontSize: '14px', color: '#64748b' }}>({squadraInfo.categoria})</span>
+          <div style={{ fontSize: '12px', color: '#1976D2', fontWeight: '600', marginBottom: '2px' }}>
+            SQUADRA
+          </div>
+          <div style={{ fontSize: '17px', fontWeight: '600', color: '#0D47A1' }}>
+            {squadraInfo.nome}
+            <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>
+              ({squadraInfo.categoria})
+            </span>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          {error && (
-            <div style={{ padding: '12px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '20px', fontSize: '14px' }}>
-              {error}
+        {error && (
+          <div style={{
+            padding: '12px 16px',
+            background: '#FFE5E5',
+            color: '#FF3B30',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            fontSize: '15px',
+          }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          {/* Avversario */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ padding: '8px 16px 4px 16px' }}>
+                <label style={labelStyle}>Avversario</label>
+              </div>
+              <input
+                type="text"
+                value={formData.avversario}
+                onChange={(e) => setFormData({...formData, avversario: e.target.value})}
+                placeholder="Nome squadra avversaria"
+                style={inputStyle}
+                required
+              />
             </div>
-          )}
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b', fontSize: '14px' }}>Avversario *</label>
-            <input
-              type="text"
-              value={formData.avversario}
-              onChange={(e) => setFormData({...formData, avversario: e.target.value})}
-              placeholder="es. A.C. Testopoli"
-              style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }}
-              required
-            />
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b', fontSize: '14px' }}>Data *</label>
-            <input
-              type="date"
-              value={formData.data_gara}
-              onChange={(e) => setFormData({...formData, data_gara: e.target.value})}
-              style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }}
-              required
-            />
+          {/* Data */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ padding: '8px 16px 4px 16px' }}>
+                <label style={labelStyle}>Data</label>
+              </div>
+              <input
+                type="date"
+                value={formData.data_gara}
+                onChange={(e) => setFormData({...formData, data_gara: e.target.value})}
+                style={{
+                  ...inputStyle,
+                  colorScheme: 'light',
+                }}
+                required
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b', fontSize: '14px' }}>Luogo</label>
-            <input
-              type="text"
-              value={formData.luogo}
-              onChange={(e) => setFormData({...formData, luogo: e.target.value})}
-              placeholder="es. Campo Comunale"
-              style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }}
-            />
+          {/* Luogo */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ padding: '8px 16px 4px 16px' }}>
+                <label style={labelStyle}>Luogo</label>
+              </div>
+              <input
+                type="text"
+                value={formData.luogo}
+                onChange={(e) => setFormData({...formData, luogo: e.target.value})}
+                placeholder="Campo, indirizzo..."
+                style={inputStyle}
+              />
+            </div>
           </div>
 
-          <div style={{ marginBottom: '25px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b', fontSize: '14px' }}>Stato</label>
-            <select
-              value={formData.stato}
-              onChange={(e) => setFormData({...formData, stato: e.target.value})}
-              style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', background: 'white' }}
-            >
-              <option value="programmata">📅 Programmata</option>
-              <option value="in_corso">▶️ In Corso</option>
-              <option value="terminata">✅ Terminata</option>
-            </select>
+          {/* Stato */}
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ padding: '8px 16px 4px 16px' }}>
+                <label style={labelStyle}>Stato</label>
+              </div>
+              <select
+                value={formData.stato}
+                onChange={(e) => setFormData({...formData, stato: e.target.value})}
+                style={{
+                  ...inputStyle,
+                  appearance: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="programmata">📅 Programmata</option>
+                <option value="in_corso">▶️ In Corso</option>
+                <option value="terminata">✅ Terminata</option>
+              </select>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Link href="/dashboard" style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', textAlign: 'center', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px' }}>
-              Annulla
-            </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ flex: 2, padding: '14px', background: loading ? '#94a3b8' : '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: loading ? 'not-allowed' : 'pointer' }}
-            >
-              {loading ? 'Creazione...' : '✓ CREA PARTITA'}
-            </button>
-          </div>
+          {/* Pulsante Crea */}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '16px',
+              background: loading ? '#8E8E93' : '#007AFF',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '17px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(0,122,255,0.3)',
+              transition: 'all 0.2s',
+            }}
+          >
+            {loading ? 'Creazione...' : '✓ Crea Partita'}
+          </button>
         </form>
       </div>
     </div>
