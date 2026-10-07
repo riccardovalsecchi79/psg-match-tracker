@@ -316,42 +316,57 @@ export default function GaraPage() {
 
       <div style={{ padding: '15px', maxWidth: '600px', margin: '0 auto' }}>
         
-        {/* SCOREBOARD */}
+                {/* SCOREBOARD */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '15px', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', alignItems: 'center' }}>
+            {/* CASA */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>CASA</div>
-              <div style={{ fontSize: '64px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>{scores.home}</div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
+              <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>{scores.home}</div>
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '10px' }}>
                 <button onClick={() => setScores(s => ({...s, home: Math.max(0, s.home - 1)}))} style={{
-                  width: '56px', height: '56px', fontSize: '28px', background: '#fee2e2', color: '#dc2626',
-                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                  width: '44px', height: '44px', fontSize: '22px', background: '#fee2e2', color: '#dc2626',
+                  border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                 }}>−</button>
                 <button onClick={() => setScores(s => ({...s, home: s.home + 1}))} style={{
-                  width: '56px', height: '56px', fontSize: '28px', background: '#dcfce7', color: '#16a34a',
-                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                  width: '44px', height: '44px', fontSize: '22px', background: '#dcfce7', color: '#16a34a',
+                  border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                 }}>+</button>
               </div>
             </div>
+
+            {/* TIRI NOSTRI */}
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI</div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI NOSTRI</div>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{shots.for}</div>
               <button onClick={() => setShots(s => ({...s, for: s.for + 1}))} style={{
-                marginTop: '10px', padding: '10px 20px', background: '#f97316', color: 'white',
-                border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+                marginTop: '8px', padding: '8px 12px', background: '#f97316', color: 'white',
+                border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
               }}>+ TIRO</button>
             </div>
+
+            {/* TIRI SUBITI */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI SUBITI</div>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{shots.against}</div>
+              <button onClick={() => setShots(s => ({...s, against: s.against + 1}))} style={{
+                marginTop: '8px', padding: '8px 12px', background: '#dc2626', color: 'white',
+                border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
+              }}>+ TIRO</button>
+            </div>
+
+            {/* OSPITE */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>OSPITE</div>
-              <div style={{ fontSize: '64px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{scores.away}</div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
+              <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{scores.away}</div>
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '10px' }}>
                 <button onClick={() => setScores(s => ({...s, away: Math.max(0, s.away - 1)}))} style={{
-                  width: '56px', height: '56px', fontSize: '28px', background: '#fee2e2', color: '#dc2626',
-                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                  width: '44px', height: '44px', fontSize: '22px', background: '#fee2e2', color: '#dc2626',
+                  border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                 }}>−</button>
                 <button onClick={() => setScores(s => ({...s, away: s.away + 1}))} style={{
-                  width: '56px', height: '56px', fontSize: '28px', background: '#dcfce7', color: '#16a34a',
-                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                  width: '44px', height: '44px', fontSize: '22px', background: '#dcfce7', color: '#16a34a',
+                  border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                 }}>+</button>
               </div>
             </div>
