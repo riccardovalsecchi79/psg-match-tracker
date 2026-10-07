@@ -383,6 +383,24 @@ export default function GaraPage() {
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
         </button>
 
+                {/* PULSANTI MODIFICA ED ELIMINA */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <button onClick={() => setShowEditModal(true)} style={{
+            flex: 1, padding: '15px', background: '#3b82f6', color: 'white',
+            border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+            cursor: 'pointer'
+          }}>
+            ✏️ MODIFICA PARTITA
+          </button>
+          <button onClick={() => setShowDeleteModal(true)} style={{
+            flex: 1, padding: '15px', background: '#dc2626', color: 'white',
+            border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+            cursor: 'pointer'
+          }}>
+            🗑️ ELIMINA PARTITA
+          </button>
+        </div>
+
         {/* SEZIONE TITOLARI */}
         <div style={{ marginBottom: '30px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
