@@ -10,6 +10,14 @@ interface Giocatore {
   numero_maglia: number
   nome_completo: string
   ruolo: string
+  squadra_id: string
+  nome_squadra?: string
+}
+
+interface Squadra {
+  id: string
+  nome_squadra: string
+  categoria: string
 }
 
 export default function FormazionePage() {
@@ -18,8 +26,10 @@ export default function FormazionePage() {
   const id = params.id as string
   const supabase = createClient()
   
-  const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '' })
-  const [giocatori, setGiocatori] = useState<Giocatore[]>([])
+  const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
+  const [tutteSquadre, setTutteSquadre] = useState<Squadra[]>([])
+  const [tuttiGiocatori, setTuttiGiocatori] = useState<Giocatore[]>([])
+  const [squadraSelezionataExtra, setSquadraSelezionataExtra] = useState('')
   const [titolari, setTitolari] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -32,13 +42,33 @@ export default function FormazionePage() {
     setSquadraInfo({ id: squadraId, nome: squadraNome || '' })
 
     const loadData = async () => {
+      // Carica tutte le squadre della società
+      const { data: squadreData } = await supabase
+        .from('squadre')
+        .select('*')
+        .order('categoria', 'nome_squadra')
+      if (squadreData) {
+        setTutteSquadre(squadreData as Squadra[])
+        // Pre-seleziona la prima squadra diversa da quella corrente
+        const altraSquadra = squadreData.find(s => s.id !== squadraId)
+        if (altraSquadra) setSquadraSelezionataExtra(altraSquadra.id)
+      }
+
+      // Carica TUTTI i giocatori di TUTTE le squadre
       const { data: giocatoriData } = await supabase
         .from('giocatori')
-        .select('*')
-        .eq('squadra_id', squadraId)
+        .select('*, squadre(nome_squadra)')
         .order('numero_maglia')
-      if (giocatoriData) setGiocatori(giocatoriData as Giocatore[])
+      
+      if (giocatoriData) {
+        const giocatoriConSquadra = giocatoriData.map(g => ({
+          ...g,
+          nome_squadra: g.squadre?.nome_squadra || ''
+        }))
+        setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
+      }
 
+      // Carica titolari esistenti
       const { data: formazioni } = await supabase
         .from('formazioni')
         .select('giocatore_id')
@@ -80,8 +110,19 @@ export default function FormazionePage() {
   }
 
   const getRuoloIcon = (ruolo: string) => {
-    switch (ruolo) { case 'P': return '🧤'; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
+    switch (ruolo) { case 'P': return ''; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
   }
+
+  const getRuoloLabel = (ruolo: string) => {
+    switch (ruolo) { case 'P': return 'Portiere'; case 'D': return 'Difensore'; case 'C': return 'Centrocampista'; case 'A': return 'Attaccante'; default: return ruolo }
+  }
+
+  // Giocatori della squadra principale
+  const giocatoriSquadraPrincipale = tuttiGiocatori.filter(g => g.squadra_id === squadraInfo.id)
+  
+  // Giocatori della squadra extra selezionata
+  const giocatoriSquadraExtra = tuttiGiocatori.filter(g => g.squadra_id === squadraSelezionataExtra)
+  const nomeSquadraExtra = tutteSquadre.find(s => s.id === squadraSelezionataExtra)?.nome_squadra || ''
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '20px', paddingBottom: '100px' }}>
@@ -107,37 +148,101 @@ export default function FormazionePage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {giocatori.map(giocatore => {
-            const isTitolare = titolari.has(giocatore.id)
-            return (
-              <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
-                display: 'flex', alignItems: 'center', padding: '15px',
-                background: isTitolare ? '#dbeafe' : 'white',
-                border: isTitolare ? '2px solid #3b82f6' : '2px solid #e2e8f0',
-                borderRadius: '12px', cursor: 'pointer', textAlign: 'left', width: '100%'
-              }}>
-                <div style={{
-                  width: '48px', height: '48px',
-                  background: isTitolare ? '#3b82f6' : '#e2e8f0',
-                  color: isTitolare ? 'white' : '#64748b',
-                  borderRadius: '50%', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', marginRight: '15px', flexShrink: 0
-                }}>{giocatore.numero_maglia}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{giocatore.nome_completo}</div>
-                  <div style={{ fontSize: '14px', color: '#64748b', marginTop: '2px' }}>{getRuoloIcon(giocatore.ruolo)} {giocatore.ruolo}</div>
-                </div>
-                <div style={{
-                  width: '32px', height: '32px', borderRadius: '50%',
-                  background: isTitolare ? '#3b82f6' : 'white',
-                  border: `3px solid ${isTitolare ? '#3b82f6' : '#cbd5e1'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'white', fontSize: '18px', fontWeight: 'bold'
-                }}>{isTitolare ? '✓' : ''}</div>
-              </button>
-            )
-          })}
+        {/* SEZIONE 1: GIOCATORI DELLA SQUADRA PRINCIPALE */}
+        <div style={{ marginBottom: '25px' }}>
+          <h2 style={{ fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #1e3a8a' }}>
+            ⚽ {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {giocatoriSquadraPrincipale.map(giocatore => {
+              const isTitolare = titolari.has(giocatore.id)
+              return (
+                <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
+                  display: 'flex', alignItems: 'center', padding: '12px',
+                  background: isTitolare ? '#dbeafe' : 'white',
+                  border: isTitolare ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                  borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%'
+                }}>
+                  <div style={{
+                    width: '44px', height: '44px',
+                    background: isTitolare ? '#3b82f6' : '#e2e8f0',
+                    color: isTitolare ? 'white' : '#64748b',
+                    borderRadius: '50%', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: '18px', fontWeight: 'bold', marginRight: '12px', flexShrink: 0
+                  }}>{giocatore.numero_maglia}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>{giocatore.nome_completo}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{getRuoloIcon(giocatore.ruolo)} {getRuoloLabel(giocatore.ruolo)}</div>
+                  </div>
+                  <div style={{
+                    width: '28px', height: '28px', borderRadius: '50%',
+                    background: isTitolare ? '#3b82f6' : 'white',
+                    border: `3px solid ${isTitolare ? '#3b82f6' : '#cbd5e1'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontSize: '16px', fontWeight: 'bold'
+                  }}>{isTitolare ? '✓' : ''}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* SEZIONE 2: GIOCATORI DI ALTRE SQUADRE */}
+        <div style={{ marginBottom: '25px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '18px', color: '#f97316', fontWeight: 'bold', margin: 0, flex: 1 }}>
+              🔄 Giocatori di altre squadre
+            </h2>
+            <select value={squadraSelezionataExtra} onChange={(e) => setSquadraSelezionataExtra(e.target.value)} style={{
+              padding: '10px', border: '2px solid #f97316', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold',
+              background: 'white', color: '#1e293b', cursor: 'pointer'
+            }}>
+              {tutteSquadre.filter(s => s.id !== squadraInfo.id).map(s => (
+                <option key={s.id} value={s.id}>{s.nome_squadra} ({s.categoria})</option>
+              ))}
+            </select>
+          </div>
+
+          {giocatoriSquadraExtra.length === 0 ? (
+            <div style={{ padding: '15px', background: '#fef3c7', borderRadius: '10px', textAlign: 'center', color: '#92400e' }}>
+              Nessun giocatore disponibile per {nomeSquadraExtra}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {giocatoriSquadraExtra.map(giocatore => {
+                const isTitolare = titolari.has(giocatore.id)
+                return (
+                  <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
+                    display: 'flex', alignItems: 'center', padding: '12px',
+                    background: isTitolare ? '#ffedd5' : 'white',
+                    border: isTitolare ? '2px solid #f97316' : '2px solid #e2e8f0',
+                    borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%'
+                  }}>
+                    <div style={{
+                      width: '44px', height: '44px',
+                      background: isTitolare ? '#f97316' : '#e2e8f0',
+                      color: isTitolare ? 'white' : '#64748b',
+                      borderRadius: '50%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '18px', fontWeight: 'bold', marginRight: '12px', flexShrink: 0
+                    }}>{giocatore.numero_maglia}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>{giocatore.nome_completo}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                        {getRuoloIcon(giocatore.ruolo)} {getRuoloLabel(giocatore.ruolo)} • {giocatore.nome_squadra}
+                      </div>
+                    </div>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      background: isTitolare ? '#f97316' : 'white',
+                      border: `3px solid ${isTitolare ? '#f97316' : '#cbd5e1'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontSize: '16px', fontWeight: 'bold'
+                    }}>{isTitolare ? '✓' : ''}</div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <button onClick={salvaFormazione} disabled={saving || titolari.size < 7} style={{
