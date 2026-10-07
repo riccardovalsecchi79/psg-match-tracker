@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import Link from 'next/link'
 
 export default function GaraPage() {
   const params = useParams()
@@ -14,23 +15,22 @@ export default function GaraPage() {
   const [playerStats, setPlayerStats] = useState<Record<string, {goals: number, assists: number}>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [squadraNome, setSquadraNome] = useState('')
   
   const supabase = createClient()
 
-  // Carica dati all'apertura
   useEffect(() => {
     const loadData = async () => {
-      // 1. Carica la gara
       const { data: match } = await supabase
         .from('gare')
-        .select('*')
+        .select('*, squadre(nome_squadra)')
         .eq('id', id)
         .single()
       
       if (match) {
         setScores({ home: match.risultato_casa || 0, away: match.risultato_ospite || 0 })
+        if (match.squadre) setSquadraNome(match.squadre.nome_squadra)
         
-        // 2. Carica i giocatori
         const { data: playersData } = await supabase
           .from('giocatori')
           .select('*')
@@ -39,7 +39,6 @@ export default function GaraPage() {
         
         if (playersData) setPlayers(playersData)
         
-        // 3. Carica i tempi e le azioni
         const { data: tempi } = await supabase
           .from('tempi_gara')
           .select('*')
@@ -49,7 +48,6 @@ export default function GaraPage() {
           const tempoCorrente = tempi.find(t => t.numero_tempo === 1) || tempi[0]
           setShots({ for: tempoCorrente.tiri_effettuati || 0, against: tempoCorrente.tiri_subiti || 0 })
           
-          // Carica azioni giocatori del primo tempo
           const { data: azioni } = await supabase
             .from('azioni_gioco')
             .select('*')
@@ -68,19 +66,16 @@ export default function GaraPage() {
     loadData()
   }, [id])
 
-  // Salva su Supabase
   const saveToDatabase = async () => {
     setSaving(true)
     setSaved(false)
     
     try {
-      // Aggiorna risultato gara
       await supabase
         .from('gare')
         .update({ risultato_casa: scores.home, risultato_ospite: scores.away })
         .eq('id', id)
       
-      // Aggiorna o crea il tempo corrente
       const { data: tempoEsistente } = await supabase
         .from('tempi_gara')
         .select('id')
@@ -114,7 +109,6 @@ export default function GaraPage() {
           .eq('id', tempoId)
       }
       
-      // Salva azioni giocatori
       for (const [playerId, stats] of Object.entries(playerStats)) {
         const { data: azioneEsistente } = await supabase
           .from('azioni_gioco')
@@ -144,14 +138,12 @@ export default function GaraPage() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
-      console.error('Errore salvataggio:', error)
       alert('Errore nel salvataggio!')
     } finally {
       setSaving(false)
     }
   }
 
-  // Aggiorna statistiche giocatore
   const updatePlayerStat = (playerId: string, field: 'goals' | 'assists', delta: number) => {
     setPlayerStats(prev => {
       const current = prev[playerId] || { goals: 0, assists: 0 }
@@ -166,119 +158,29 @@ export default function GaraPage() {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{ color: 'blue', fontSize: '24px', marginBottom: '20px' }}>
-        P.S.G. Molteno Brongio
-      </h1>
-
-      {/* Selettore Tempi */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {[1, 2, 3, 4].map(p => (
-          <button
-            key={p}
-            onClick={() => setCurrentPeriod(p)}
-            style={{
-              padding: '10px 20px',
-              background: currentPeriod === p ? 'blue' : 'gray',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontSize: '16px'
-            }}
-          >
-            {p}° Tempo
-          </button>
-        ))}
-      </div>
-
-      {/* Scoreboard */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: '#f0f0f0', borderRadius: '10px', marginBottom: '20px' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '12px', color: 'gray' }}>CASA</div>
-          <div style={{ fontSize: '48px', fontWeight: 'bold' }}>{scores.home}</div>
-          <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '10px' }}>
-            <button onClick={() => setScores(s => ({...s, home: Math.max(0, s.home - 1)}))} style={{ padding: '5px 15px', fontSize: '18px' }}>-</button>
-            <button onClick={() => setScores(s => ({...s, home: s.home + 1}))} style={{ padding: '5px 15px', fontSize: '18px' }}>+</button>
-          </div>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F2F2F7', paddingBottom: '100px' }}>
+      
+      {/* Header sticky */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: 'rgba(242, 242, 247, 0.85)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+        padding: '12px 16px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+          <Link href="/dashboard" style={{
+            color: '#007AFF',
+            textDecoration: 'none',
+            fontSize: '17px',
+            fontWeight: '400',
+            marginRight: '8px',
+          }}>
+            ← Indietro
+          </Link>
         </div>
-        
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '12px', color: 'gray' }}>TIRI NOSTRI</div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'orange' }}>{shots.for}</div>
-          <button onClick={() => setShots(s => ({...s, for: s.for + 1}))} style={{ padding: '5px 10px', marginTop: '5px' }}>+ Tiro</button>
-        </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '12px', color: 'gray' }}>OSPITE</div>
-          <div style={{ fontSize: '48px', fontWeight: 'bold' }}>{scores.away}</div>
-          <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '10px' }}>
-            <button onClick={() => setScores(s => ({...s, away: Math.max(0, s.away - 1)}))} style={{ padding: '5px 15px', fontSize: '18px' }}>-</button>
-            <button onClick={() => setScores(s => ({...s, away: s.away + 1}))} style={{ padding: '5px 15px', fontSize: '18px' }}>+</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Pulsante Salva */}
-      <button
-        onClick={saveToDatabase}
-        disabled={saving}
-        style={{
-          width: '100%',
-          padding: '15px',
-          background: saved ? 'green' : 'blue',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          cursor: saving ? 'not-allowed' : 'pointer',
-          marginBottom: '20px'
-        }}
-      >
-        {saving ? '💾 Salvataggio...' : saved ? '✅ Salvato!' : '💾 SALVA TUTTO'}
-      </button>
-
-      {/* Lista Giocatori */}
-      <div>
-        <h2 style={{ fontSize: '20px', marginBottom: '15px' }}>Giocatori ({players.length})</h2>
-        {players.map(player => {
-          const stats = playerStats[player.id] || { goals: 0, assists: 0 }
-          return (
-            <div key={player.id} style={{ padding: '15px', background: 'white', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <div style={{ width: '40px', height: '40px', background: 'blue', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {player.numero_maglia}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 'bold' }}>{player.nome_completo}</div>
-                    <div style={{ fontSize: '12px', color: 'gray' }}>{player.ruolo}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '12px', color: 'gray' }}>Reti</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'green' }}>{stats.goals}</div>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{ padding: '3px 10px' }}>-</button>
-                      <button onClick={() => updatePlayerStat(player.id, 'goals', 1)} style={{ padding: '3px 10px' }}>+</button>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '12px', color: 'gray' }}>Assist</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'blue' }}>{stats.assists}</div>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{ padding: '3px 10px' }}>-</button>
-                      <button onClick={() => updatePlayerStat(player.id, 'assists', 1)} style={{ padding: '3px 10px' }}>+</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+        <h1 style={{
+          fontSize: '1
