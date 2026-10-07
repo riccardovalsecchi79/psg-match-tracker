@@ -77,7 +77,7 @@ export default function NuovaGaraPage() {
     }
   }
 
-  const inputStyle: React.CSSProperties = {
+  const inputStyle = {
     width: '100%',
     padding: '12px 16px',
     border: 'none',
@@ -85,14 +85,14 @@ export default function NuovaGaraPage() {
     background: 'transparent',
     color: '#000000',
     outline: 'none',
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
   }
 
-  const labelStyle: React.CSSProperties = {
+  const labelStyle = {
     fontSize: '13px',
     fontWeight: '500',
     color: '#8E8E93',
-    textTransform: 'uppercase',
+    textTransform: 'uppercase' as const,
     letterSpacing: '0.3px',
     marginBottom: '4px',
     display: 'block',
@@ -101,7 +101,6 @@ export default function NuovaGaraPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#F2F2F7' }}>
       
-      {/* Header */}
       <div style={{
         position: 'sticky',
         top: 0,
@@ -121,12 +120,7 @@ export default function NuovaGaraPage() {
           }}>
             ← Annulla
           </Link>
-          <h1 style={{
-            fontSize: '17px',
-            fontWeight: '600',
-            margin: 0,
-            color: '#000000',
-          }}>
+          <h1 style={{ fontSize: '17px', fontWeight: '600', margin: 0, color: '#000000' }}>
             Nuova Partita
           </h1>
           <div style={{ width: '70px' }}></div>
@@ -135,7 +129,6 @@ export default function NuovaGaraPage() {
 
       <div style={{ padding: '16px', maxWidth: '600px', margin: '0 auto' }}>
         
-        {/* Info squadra */}
         <div style={{
           backgroundColor: '#E3F2FD',
           borderRadius: '12px',
@@ -168,13 +161,8 @@ export default function NuovaGaraPage() {
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* Avversario */}
           <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              overflow: 'hidden',
-            }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{ padding: '8px 16px 4px 16px' }}>
                 <label style={labelStyle}>Avversario</label>
               </div>
@@ -189,13 +177,8 @@ export default function NuovaGaraPage() {
             </div>
           </div>
 
-          {/* Data */}
           <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              overflow: 'hidden',
-            }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{ padding: '8px 16px 4px 16px' }}>
                 <label style={labelStyle}>Data</label>
               </div>
@@ -203,83 +186,7 @@ export default function NuovaGaraPage() {
                 type="date"
                 value={formData.data_gara}
                 onChange={(e) => setFormData({...formData, data_gara: e.target.value})}
-                style={{
-                  ...inputStyle,
-                  colorScheme: 'light',
-                }}
+                style={inputStyle}
                 required
               />
-            </div>
-          </div>
-
-          {/* Luogo */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              overflow: 'hidden',
-            }}>
-              <div style={{ padding: '8px 16px 4px 16px' }}>
-                <label style={labelStyle}>Luogo</label>
-              </div>
-              <input
-                type="text"
-                value={formData.luogo}
-                onChange={(e) => setFormData({...formData, luogo: e.target.value})}
-                placeholder="Campo, indirizzo..."
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          {/* Stato */}
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
-              overflow: 'hidden',
-            }}>
-              <div style={{ padding: '8px 16px 4px 16px' }}>
-                <label style={labelStyle}>Stato</label>
-              </div>
-              <select
-                value={formData.stato}
-                onChange={(e) => setFormData({...formData, stato: e.target.value})}
-                style={{
-                  ...inputStyle,
-                  appearance: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                <option value="programmata">📅 Programmata</option>
-                <option value="in_corso">▶️ In Corso</option>
-                <option value="terminata">✅ Terminata</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Pulsante Crea */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '16px',
-              background: loading ? '#8E8E93' : '#007AFF',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '17px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 8px rgba(0,122,255,0.3)',
-              transition: 'all 0.2s',
-            }}
-          >
-            {loading ? 'Creazione...' : '✓ Crea Partita'}
-          </button>
-        </form>
-      </div>
-    </div>
-  )
-}
+            </
