@@ -37,9 +37,15 @@ export default function FormazionePage() {
   useEffect(() => {
     const squadraId = localStorage.getItem('squadra_selezionata_id')
     const squadraNome = localStorage.getItem('squadra_selezionata_nome')
+    const squadraCategoria = localStorage.getItem('squadra_selezionata_categoria')
 
     if (!squadraId) { router.push('/'); return }
-    setSquadraInfo({ id: squadraId, nome: squadraNome || '' })
+    
+    setSquadraInfo({ 
+      id: squadraId, 
+      nome: squadraNome || '', 
+      categoria: squadraCategoria || '' 
+    })
 
     const loadData = async () => {
       // Carica tutte le squadre della società
@@ -110,7 +116,7 @@ export default function FormazionePage() {
   }
 
   const getRuoloIcon = (ruolo: string) => {
-    switch (ruolo) { case 'P': return ''; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
+    switch (ruolo) { case 'P': return '🧤'; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
   }
 
   const getRuoloLabel = (ruolo: string) => {
@@ -253,7 +259,7 @@ export default function FormazionePage() {
           fontWeight: 'bold', cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100
         }}>
-          {saving ? ' SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
+          {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
         </button>
       </div>
     </div>
