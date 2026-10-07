@@ -22,7 +22,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from('squadre')
         .select('*')
-        .order('categoria')
+        .order('categoria', { ascending: true })
         .then(({ data, error }) => ({ data, error }))
       
       // Fallback se la query sopra non funziona
@@ -33,6 +33,15 @@ export default function Home() {
       
       if (squadreData) {
         setSquadre(squadreData as Squadra[])
+        // Ordina le squadre nell'ordine desiderato: Esordienti → Pulcini → Primi Calci
+const ordineCategorie = ['Esordienti', 'Pulcini', 'Primi Calci']
+const squadreOrdinate = squadreData.sort((a: Squadra, b: Squadra) => {
+  const ordineA = ordineCategorie.indexOf(a.categoria)
+  const ordineB = ordineCategorie.indexOf(b.categoria)
+  if (ordineA !== ordineB) return ordineA - ordineB
+  return a.nome_squadra.localeCompare(b.nome_squadra)
+})
+setSquadre(squadreOrdinate)
       }
       setLoading(false)
     }
