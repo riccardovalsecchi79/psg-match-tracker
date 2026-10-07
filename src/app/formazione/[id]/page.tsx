@@ -52,7 +52,9 @@ export default function FormazionePage() {
       const { data: squadreData } = await supabase
         .from('squadre')
         .select('*')
-        .order('categoria', 'nome_squadra')
+        .order('categoria', { ascending: true })
+        .order('nome_squadra', { ascending: true })
+      
       if (squadreData) {
         setTutteSquadre(squadreData as Squadra[])
         // Pre-seleziona la prima squadra diversa da quella corrente
@@ -64,12 +66,12 @@ export default function FormazionePage() {
       const { data: giocatoriData } = await supabase
         .from('giocatori')
         .select('*, squadre(nome_squadra)')
-        .order('numero_maglia')
+        .order('numero_maglia', { ascending: true })
       
       if (giocatoriData) {
         const giocatoriConSquadra = giocatoriData.map(g => ({
           ...g,
-          nome_squadra: g.squadre?.nome_squadra || ''
+          nome_squadra: (g as any).squadre?.nome_squadra || ''
         }))
         setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
       }
