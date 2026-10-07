@@ -135,6 +135,25 @@ export default function Dashboard() {
         <Link href="/nuova-gara" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '16px', background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)', color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '12px', fontSize: '17px', fontWeight: '600', marginBottom: '24px', boxShadow: '0 2px 8px rgba(0,122,255,0.3)' }}>
           <span style={{ marginRight: '8px', fontSize: '20px' }}>+</span> Nuova Partita
         </Link>
+        <Link 
+  href="/statistiche"
+  style={{
+    display: 'block',
+    width: '100%',
+    padding: '15px',
+    background: '#f97316',
+    color: 'white',
+    textAlign: 'center',
+    textDecoration: 'none',
+    borderRadius: '10px',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    marginBottom: '15px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+  }}
+>
+  📊 STATISTICHE
+</Link>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#8E8E93' }}>Caricamento partite...</div>
