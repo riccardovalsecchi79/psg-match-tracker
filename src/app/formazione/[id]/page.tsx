@@ -33,6 +33,7 @@ export default function FormazionePage() {
   const [titolari, setTitolari] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     const squadraId = localStorage.getItem('squadra_selezionata_id')
@@ -48,41 +49,61 @@ export default function FormazionePage() {
     })
 
     const loadData = async () => {
-      // Carica tutte le squadre della società
-      const { data: squadreData } = await supabase
-        .from('squadre')
-        .select('*')
-        .order('categoria', { ascending: true })
-        .order('nome_squadra', { ascending: true })
-      
-      if (squadreData) {
-        setTutteSquadre(squadreData as Squadra[])
-        // Pre-seleziona la prima squadra diversa da quella corrente
-        const altraSquadra = squadreData.find(s => s.id !== squadraId)
-        if (altraSquadra) setSquadraSelezionataExtra(altraSquadra.id)
-      }
+      try {
+        // Carica tutte le squadre della società
+        const { data: squadreData, error: squadreError } = await supabase
+          .from('squadre')
+          .select('*')
+          .order('categoria', { ascending: true })
+        
+        if (squadreError) {
+          console.error('Errore caricamento squadre:', squadreError)
+          return
+        }
+        
+        if (squadreData) {
+          setTutteSquadre(squadreData as Squadra[])
+          const altraSquadra = squadreData.find(s => s.id !== squadraId)
+          if (altraSquadra) setSquadraSelezionataExtra(altraSquadra.id)
+        }
 
-      // Carica TUTTI i giocatori di TUTTE le squadre
-      const { data: giocatoriData } = await supabase
-        .from('giocatori')
-        .select('*, squadre(nome_squadra)')
-        .order('numero_maglia', { ascending: true })
-      
-      if (giocatoriData) {
-        const giocatoriConSquadra = giocatoriData.map(g => ({
-          ...g,
-          nome_squadra: (g as any).squadre?.nome_squadra || ''
-        }))
-        setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
-      }
+        // Carica TUTTI i giocatori di TUTTE le squadre
+        const { data: giocatoriData, error: giocatoriError } = await supabase
+          .from('giocatori')
+          .select('*, squadre(nome_squadra)')
+          .order('numero_maglia', { ascending: true })
+        
+        if (giocatoriError) {
+          console.error('Errore caricamento giocatori:', giocatoriError)
+          return
+        }
+        
+        if (giocatoriData) {
+          const giocatoriConSquadra = giocatoriData.map(g => ({
+            ...g,
+            nome_squadra: (g as any).squadre?.nome_squadra || ''
+          }))
+          setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
+        }
 
-      // Carica titolari esistenti
-      const { data: formazioni } = await supabase
-        .from('formazioni')
-        .select('giocatore_id')
-        .eq('gara_id', id)
-        .eq('titolare', true)
-      if (formazioni) setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
+        // Carica titolari esistenti
+        const { data: formazioni, error: formazioniError } = await supabase
+          .from('formazioni')
+          .select('giocatore_id')
+          .eq('gara_id', id)
+          .eq('titolare', true)
+        
+        if (formazioniError) {
+          console.error('Errore caricamento formazioni:', formazioniError)
+          return
+        }
+        
+        if (formazioni) {
+          setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
+        }
+      } catch (error) {
+        console.error('Errore generale nel caricamento:', error)
+      }
     }
     loadData()
   }, [id, router])
@@ -90,31 +111,73 @@ export default function FormazionePage() {
   const toggleTitolare = (giocatoreId: string) => {
     setTitolari(prev => {
       const newSet = new Set(prev)
-      if (newSet.has(giocatoreId)) newSet.delete(giocatoreId)
-      else newSet.add(giocatoreId)
+      if (newSet.has(giocatoreId)) {
+        newSet.delete(giocatoreId)
+      } else {
+        newSet.add(giocatoreId)
+      }
       return newSet
     })
     setSaved(false)
+    setErrorMessage('')
   }
 
   const salvaFormazione = async () => {
-    setSaving(true); setSaved(false)
+    if (titolari.size < 7) {
+      setErrorMessage('Devi selezionare almeno 7 titolari')
+      return
+    }
+
+    setSaving(true)
+    setSaved(false)
+    setErrorMessage('')
+    
     try {
-      await supabase.from('formazioni').delete().eq('gara_id', id)
-      if (titolari.size > 0) {
-        const { error } = await supabase
-          .from('formazioni')
-          .insert(Array.from(titolari).map(giocatoreId => ({
-            gara_id: id, giocatore_id: giocatoreId, titolare: true
-          })))
-        if (error) throw error
+      console.log('Inizio salvataggio formazione per gara:', id)
+      console.log('Titolari selezionati:', Array.from(titolari))
+
+      // 1. Elimina formazioni esistenti
+      const { error: deleteError } = await supabase
+        .from('formazioni')
+        .delete()
+        .eq('gara_id', id)
+      
+      if (deleteError) {
+        console.error('Errore eliminazione formazioni:', deleteError)
+        throw new Error('Errore durante l\'eliminazione delle formazioni esistenti: ' + deleteError.message)
       }
+
+      // 2. Inserisci nuovi titolari
+      if (titolari.size > 0) {
+        const formazioniData = Array.from(titolari).map(giocatoreId => ({
+          gara_id: id,
+          giocatore_id: giocatoreId,
+          titolare: true
+        }))
+
+        console.log('Dati da inserire:', formazioniData)
+
+        const { error: insertError } = await supabase
+          .from('formazioni')
+          .insert(formazioniData)
+        
+        if (insertError) {
+          console.error('Errore inserimento formazioni:', insertError)
+          throw new Error('Errore durante il salvataggio: ' + insertError.message)
+        }
+      }
+
+      console.log('Formazione salvata con successo!')
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
-      console.error('Errore:', error)
-      alert('Errore nel salvataggio')
-    } finally { setSaving(false) }
+      console.error('Errore completo:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto'
+      setErrorMessage(errorMessage)
+      alert('Errore nel salvataggio: ' + errorMessage)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const getRuoloIcon = (ruolo: string) => {
@@ -143,6 +206,21 @@ export default function FormazionePage() {
             <p style={{ color: '#64748b', fontSize: '14px', margin: '5px 0 0 0' }}>{squadraInfo.nome}</p>
           </div>
         </div>
+
+        {errorMessage && (
+          <div style={{
+            padding: '15px',
+            background: '#fee2e2',
+            border: '2px solid #dc2626',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            textAlign: 'center',
+            color: '#dc2626',
+            fontWeight: 'bold'
+          }}>
+             {errorMessage}
+          </div>
+        )}
 
         <div style={{
           padding: '15px', background: titolari.size >= 7 ? '#dcfce7' : '#fee2e2',
@@ -253,14 +331,28 @@ export default function FormazionePage() {
           )}
         </div>
 
-        <button onClick={salvaFormazione} disabled={saving || titolari.size < 7} style={{
-          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-          width: 'calc(100% - 40px)', maxWidth: '760px', padding: '20px',
-          background: saved ? '#22c55e' : saving || titolari.size < 7 ? '#94a3b8' : '#1e3a8a',
-          color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px',
-          fontWeight: 'bold', cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100
-        }}>
+        <button 
+          onClick={salvaFormazione} 
+          disabled={saving || titolari.size < 7} 
+          style={{
+            position: 'fixed', 
+            bottom: '20px', 
+            left: '50%', 
+            transform: 'translateX(-50%)',
+            width: 'calc(100% - 40px)', 
+            maxWidth: '760px', 
+            padding: '20px',
+            background: saved ? '#22c55e' : saving || titolari.size < 7 ? '#94a3b8' : '#1e3a8a',
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '12px', 
+            fontSize: '18px',
+            fontWeight: 'bold', 
+            cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)', 
+            zIndex: 100
+          }}
+        >
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
         </button>
       </div>
