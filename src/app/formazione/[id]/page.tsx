@@ -30,6 +30,7 @@ export default function FormazionePage() {
   const [tutteSquadre, setTutteSquadre] = useState<Squadra[]>([])
   const [tuttiGiocatori, setTuttiGiocatori] = useState<Giocatore[]>([])
   const [squadraSelezionataExtra, setSquadraSelezionataExtra] = useState('')
+  const [tempoSelezionato, setTempoSelezionato] = useState(1)
   const [titolari, setTitolari] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -50,7 +51,6 @@ export default function FormazionePage() {
 
     const loadData = async () => {
       try {
-        // Carica tutte le squadre della società
         const { data: squadreData, error: squadreError } = await supabase
           .from('squadre')
           .select('*')
@@ -67,7 +67,6 @@ export default function FormazionePage() {
           if (altraSquadra) setSquadraSelezionataExtra(altraSquadra.id)
         }
 
-        // Carica TUTTI i giocatori di TUTTE le squadre
         const { data: giocatoriData, error: giocatoriError } = await supabase
           .from('giocatori')
           .select('*, squadre(nome_squadra)')
@@ -86,27 +85,45 @@ export default function FormazionePage() {
           setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
         }
 
-        // Carica titolari esistenti
-        const { data: formazioni, error: formazioniError } = await supabase
-          .from('formazioni')
-          .select('giocatore_id')
-          .eq('gara_id', id)
-          .eq('titolare', true)
-        
-        if (formazioniError) {
-          console.error('Errore caricamento formazioni:', formazioniError)
-          return
-        }
-        
-        if (formazioni) {
-          setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
-        }
+        // Carica titolari del tempo selezionato
+        await caricaTitolari(1)
       } catch (error) {
-        console.error('Errore generale nel caricamento:', error)
+        console.error('Errore generale:', error)
       }
     }
     loadData()
   }, [id, router])
+
+  const caricaTitolari = async (tempo: number) => {
+    try {
+      const { data: formazioni, error } = await supabase
+        .from('formazioni')
+        .select('giocatore_id')
+        .eq('gara_id', id)
+        .eq('numero_tempo', tempo)
+        .eq('titolare', true)
+      
+      if (error) {
+        console.error('Errore caricamento formazioni:', error)
+        return
+      }
+      
+      if (formazioni) {
+        setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
+      } else {
+        setTitolari(new Set())
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+    }
+  }
+
+  const cambiaTempo = async (tempo: number) => {
+    setTempoSelezionato(tempo)
+    setSaved(false)
+    setErrorMessage('')
+    await caricaTitolari(tempo)
+  }
 
   const toggleTitolare = (giocatoreId: string) => {
     setTitolari(prev => {
@@ -122,6 +139,29 @@ export default function FormazionePage() {
     setErrorMessage('')
   }
 
+  const copiaDaAltroTempo = async (tempoOrigine: number) => {
+    if (tempoOrigine === tempoSelezionato) return
+    
+    const { data, error } = await supabase
+      .from('formazioni')
+      .select('giocatore_id')
+      .eq('gara_id', id)
+      .eq('numero_tempo', tempoOrigine)
+      .eq('titolare', true)
+    
+    if (error) {
+      console.error('Errore copia:', error)
+      alert('Errore nel copiare la formazione')
+      return
+    }
+    
+    if (data) {
+      setTitolari(new Set(data.map(f => f.giocatore_id)))
+      setSaved(false)
+      alert(`✅ Formazione del ${tempoOrigine}° tempo copiata!`)
+    }
+  }
+
   const salvaFormazione = async () => {
     if (titolari.size < 7) {
       setErrorMessage('Devi selezionare almeno 7 titolari')
@@ -133,45 +173,34 @@ export default function FormazionePage() {
     setErrorMessage('')
     
     try {
-      console.log('Inizio salvataggio formazione per gara:', id)
-      console.log('Titolari selezionati:', Array.from(titolari))
+      console.log(`Salvataggio formazione per gara ${id}, tempo ${tempoSelezionato}`)
 
-      // 1. Elimina formazioni esistenti
       const { error: deleteError } = await supabase
         .from('formazioni')
         .delete()
         .eq('gara_id', id)
+        .eq('numero_tempo', tempoSelezionato)
       
-      if (deleteError) {
-        console.error('Errore eliminazione formazioni:', deleteError)
-        throw new Error('Errore durante l\'eliminazione delle formazioni esistenti: ' + deleteError.message)
-      }
+      if (deleteError) throw new Error('Errore eliminazione: ' + deleteError.message)
 
-      // 2. Inserisci nuovi titolari
       if (titolari.size > 0) {
         const formazioniData = Array.from(titolari).map(giocatoreId => ({
           gara_id: id,
           giocatore_id: giocatoreId,
+          numero_tempo: tempoSelezionato,
           titolare: true
         }))
-
-        console.log('Dati da inserire:', formazioniData)
 
         const { error: insertError } = await supabase
           .from('formazioni')
           .insert(formazioniData)
         
-        if (insertError) {
-          console.error('Errore inserimento formazioni:', insertError)
-          throw new Error('Errore durante il salvataggio: ' + insertError.message)
-        }
+        if (insertError) throw new Error('Errore inserimento: ' + insertError.message)
       }
 
-      console.log('Formazione salvata con successo!')
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
-      console.error('Errore completo:', error)
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto'
       setErrorMessage(errorMessage)
       alert('Errore nel salvataggio: ' + errorMessage)
@@ -181,17 +210,14 @@ export default function FormazionePage() {
   }
 
   const getRuoloIcon = (ruolo: string) => {
-    switch (ruolo) { case 'P': return '🧤'; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
+    switch (ruolo) { case 'P': return ''; case 'D': return '🛡️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
   }
 
   const getRuoloLabel = (ruolo: string) => {
     switch (ruolo) { case 'P': return 'Portiere'; case 'D': return 'Difensore'; case 'C': return 'Centrocampista'; case 'A': return 'Attaccante'; default: return ruolo }
   }
 
-  // Giocatori della squadra principale
   const giocatoriSquadraPrincipale = tuttiGiocatori.filter(g => g.squadra_id === squadraInfo.id)
-  
-  // Giocatori della squadra extra selezionata
   const giocatoriSquadraExtra = tuttiGiocatori.filter(g => g.squadra_id === squadraSelezionataExtra)
   const nomeSquadraExtra = tutteSquadre.find(s => s.id === squadraSelezionataExtra)?.nome_squadra || ''
 
@@ -207,16 +233,65 @@ export default function FormazionePage() {
           </div>
         </div>
 
+        {/* SELETTORE TEMPO */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px', fontWeight: 'bold' }}>
+            SELEZIONA IL TEMPO PER MODIFICARE LA FORMAZIONE:
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+            {[1, 2, 3, 4].map(t => (
+              <button
+                key={t}
+                onClick={() => cambiaTempo(t)}
+                style={{
+                  padding: '12px',
+                  background: tempoSelezionato === t ? '#1e3a8a' : 'white',
+                  color: tempoSelezionato === t ? 'white' : '#1e3a8a',
+                  border: `2px solid ${tempoSelezionato === t ? '#1e3a8a' : '#cbd5e1'}`,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {t}° Tempo
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* PULSANTI COPIA DA ALTRI TEMPI */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '8px', fontWeight: 'bold' }}>
+            📋 COPIA FORMAZIONE DA:
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+            {[1, 2, 3, 4].filter(t => t !== tempoSelezionato).map(t => (
+              <button
+                key={t}
+                onClick={() => copiaDaAltroTempo(t)}
+                style={{
+                  padding: '10px',
+                  background: '#f97316',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}
+              >
+                {t}° Tempo
+              </button>
+            ))}
+          </div>
+        </div>
+
         {errorMessage && (
           <div style={{
-            padding: '15px',
-            background: '#fee2e2',
-            border: '2px solid #dc2626',
-            borderRadius: '10px',
-            marginBottom: '20px',
-            textAlign: 'center',
-            color: '#dc2626',
-            fontWeight: 'bold'
+            padding: '15px', background: '#fee2e2', border: '2px solid #dc2626',
+            borderRadius: '10px', marginBottom: '20px', textAlign: 'center',
+            color: '#dc2626', fontWeight: 'bold'
           }}>
              {errorMessage}
           </div>
@@ -227,8 +302,12 @@ export default function FormazionePage() {
           borderRadius: '10px', marginBottom: '20px', textAlign: 'center',
           border: `2px solid ${titolari.size >= 7 ? '#22c55e' : '#dc2626'}`
         }}>
-          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '5px' }}>TITOLARI SELEZIONATI</div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: titolari.size >= 7 ? '#16a34a' : '#dc2626' }}>{titolari.size}</div>
+          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '5px' }}>
+            TITOLARI {tempoSelezionato}° TEMPO
+          </div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: titolari.size >= 7 ? '#16a34a' : '#dc2626' }}>
+            {titolari.size}
+          </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px' }}>
             {titolari.size >= 7 ? '✅ Formazione completa' : '⚠️ Servono almeno 7 titolari'}
           </div>
@@ -237,7 +316,7 @@ export default function FormazionePage() {
         {/* SEZIONE 1: GIOCATORI DELLA SQUADRA PRINCIPALE */}
         <div style={{ marginBottom: '25px' }}>
           <h2 style={{ fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #1e3a8a' }}>
-            ⚽ {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
+             {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {giocatoriSquadraPrincipale.map(giocatore => {
@@ -335,25 +414,15 @@ export default function FormazionePage() {
           onClick={salvaFormazione} 
           disabled={saving || titolari.size < 7} 
           style={{
-            position: 'fixed', 
-            bottom: '20px', 
-            left: '50%', 
-            transform: 'translateX(-50%)',
-            width: 'calc(100% - 40px)', 
-            maxWidth: '760px', 
-            padding: '20px',
+            position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+            width: 'calc(100% - 40px)', maxWidth: '760px', padding: '20px',
             background: saved ? '#22c55e' : saving || titolari.size < 7 ? '#94a3b8' : '#1e3a8a',
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '12px', 
-            fontSize: '18px',
-            fontWeight: 'bold', 
-            cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)', 
-            zIndex: 100
+            color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px',
+            fontWeight: 'bold', cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100
           }}
         >
-          {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
+          {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE ${tempoSelezionato}° TEMPO (${titolari.size} titolari)`}
         </button>
       </div>
     </div>
