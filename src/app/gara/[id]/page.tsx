@@ -7,16 +7,25 @@ import { createClient } from '@/lib/supabase'
 export default function GaraPage() {
   const params = useParams()
   const id = params.id as string
+  const supabase = createClient()
+  
   const [players, setPlayers] = useState<any[]>([])
+  const [titolariIds, setTitolariIds] = useState<Set<string>>(new Set())
   const [currentPeriod, setCurrentPeriod] = useState(1)
   const [scores, setScores] = useState({ home: 0, away: 0 })
   const [shots, setShots] = useState({ for: 0, against: 0 })
   const [playerStats, setPlayerStats] = useState<Record<string, {goals: number, assists: number}>>({})
+  const [playerMinutes, setPlayerMinutes] = useState<Record<string, number>>({})
+  const [sostituzioni, setSostituzioni] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '' })
   
-  const supabase = createClient()
+  // Modal sostituzione
+  const [showSubModal, setShowSubModal] = useState(false)
+  const [subUscente, setSubUscente] = useState('')
+  const [subEntrante, setSubEntrante] = useState('')
+  const [subMinuto, setSubMinuto] = useState('')
 
   // Carica dati all'apertura
   useEffect(() => {
@@ -31,6 +40,7 @@ export default function GaraPage() {
         setMatchInfo({ avversario: match.avversario || '', data: match.data_gara || '' })
         setScores({ home: match.risultato_casa || 0, away: match.risultato_ospite || 0 })
         
+        // Carica giocatori
         const { data: playersData } = await supabase
           .from('giocatori')
           .select('*')
@@ -39,6 +49,18 @@ export default function GaraPage() {
         
         if (playersData) setPlayers(playersData)
         
+        // Carica titolari
+        const { data: formazioni } = await supabase
+          .from('formazioni')
+          .select('giocatore_id')
+          .eq('gara_id', id)
+          .eq('titolare', true)
+        
+        if (formazioni) {
+          setTitolariIds(new Set(formazioni.map(f => f.giocatore_id)))
+        }
+        
+        // Carica tempi e azioni
         const { data: tempi } = await supabase
           .from('tempi_gara')
           .select('*')
@@ -60,23 +82,48 @@ export default function GaraPage() {
             })
             setPlayerStats(stats)
           }
+          
+          // Carica minuti giocati
+          const { data: minutiData } = await supabase
+            .from('minuti_giocati')
+            .select('*')
+            .eq('gara_id', id)
+          
+          if (minutiData) {
+            const minutes: Record<string, number> = {}
+            minutiData.forEach(m => {
+              minutes[m.giocatore_id] = m.minuti || 0
+            })
+            setPlayerMinutes(minutes)
+          }
+          
+          // Carica sostituzioni
+          const { data: subsData } = await supabase
+            .from('sostituzioni')
+            .select('*')
+            .eq('gara_id', id)
+            .order('minuto_sostituzione')
+          
+          if (subsData) setSostituzioni(subsData)
         }
       }
     }
     loadData()
   }, [id])
 
-  // Salva su Supabase
+  // Salva tutto su Supabase
   const saveToDatabase = async () => {
     setSaving(true)
     setSaved(false)
     
     try {
+      // 1. Aggiorna risultato gara
       await supabase
         .from('gare')
         .update({ risultato_casa: scores.home, risultato_ospite: scores.away })
         .eq('id', id)
       
+      // 2. Aggiorna o crea tempo corrente
       const { data: tempoEsistente } = await supabase
         .from('tempi_gara')
         .select('id')
@@ -103,13 +150,11 @@ export default function GaraPage() {
       } else {
         await supabase
           .from('tempi_gara')
-          .update({
-            tiri_effettuati: shots.for,
-            tiri_subiti: shots.against
-          })
+          .update({ tiri_effettuati: shots.for, tiri_subiti: shots.against })
           .eq('id', tempoId)
       }
       
+      // 3. Salva azioni giocatori (reti/assist)
       for (const [playerId, stats] of Object.entries(playerStats)) {
         const { data: azioneEsistente } = await supabase
           .from('azioni_gioco')
@@ -136,6 +181,44 @@ export default function GaraPage() {
         }
       }
       
+      // 4. Salva minuti giocati
+      await supabase
+        .from('minuti_giocati')
+        .delete()
+        .eq('gara_id', id)
+        .eq('tempo_id', tempoId)
+      
+      for (const [playerId, minuti] of Object.entries(playerMinutes)) {
+        if (minuti > 0) {
+          await supabase
+            .from('minuti_giocati')
+            .insert({
+              gara_id: id,
+              tempo_id: tempoId,
+              giocatore_id: playerId,
+              minuti: minuti
+            })
+        }
+      }
+      
+      // 5. Salva sostituzioni
+      await supabase
+        .from('sostituzioni')
+        .delete()
+        .eq('gara_id', id)
+      
+      for (const sub of sostituzioni) {
+        await supabase
+          .from('sostituzioni')
+          .insert({
+            gara_id: id,
+            tempo_id: tempoId,
+            giocatore_uscente_id: sub.giocatore_uscente_id,
+            giocatore_entrante_id: sub.giocatore_entrante_id,
+            minuto_sostituzione: sub.minuto_sostituzione
+          })
+      }
+      
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
@@ -151,417 +234,375 @@ export default function GaraPage() {
       const current = prev[playerId] || { goals: 0, assists: 0 }
       return {
         ...prev,
-        [playerId]: {
-          ...current,
-          [field]: Math.max(0, current[field] + delta)
-        }
+        [playerId]: { ...current, [field]: Math.max(0, current[field] + delta) }
       }
     })
   }
 
+  const updatePlayerMinutes = (playerId: string, delta: number) => {
+    setPlayerMinutes(prev => {
+      const current = prev[playerId] || 0
+      const newValue = Math.max(0, Math.min(30, current + delta))
+      return { ...prev, [playerId]: newValue }
+    })
+  }
+
+  const aggiungiSostituzione = () => {
+    if (!subUscente || !subEntrante || !subMinuto) {
+      alert('Compila tutti i campi della sostituzione')
+      return
+    }
+    
+    const nuovaSub = {
+      giocatore_uscente_id: subUscente,
+      giocatore_entrante_id: subEntrante,
+      minuto_sostituzione: parseInt(subMinuto)
+    }
+    
+    setSostituzioni(prev => [...prev, nuovaSub])
+    
+    // Rimuovi uscente dai titolari, aggiungi entrante
+    setTitolariIds(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(subUscente)
+      newSet.add(subEntrante)
+      return newSet
+    })
+    
+    // Reset modal
+    setShowSubModal(false)
+    setSubUscente('')
+    setSubEntrante('')
+    setSubMinuto('')
+  }
+
+  const rimuoviSostituzione = (index: number) => {
+    setSostituzioni(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const getRuoloIcon = (ruolo: string) => {
+    switch (ruolo) {
+      case 'P': return '🧤'
+      case 'D': return '🛡️'
+      case 'C': return '🎽'
+      case 'A': return '🎯'
+      default: return ''
+    }
+  }
+
+  const titolari = players.filter(p => titolariIds.has(p.id))
+  const panchina = players.filter(p => !titolariIds.has(p.id))
+
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#f1f5f9',
-      paddingBottom: '100px'
-    }}>
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '100px' }}>
       {/* HEADER FISSO */}
       <div style={{
-        position: 'sticky',
-        top: 0,
-        background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-        color: 'white',
-        padding: '15px',
-        zIndex: 100,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        position: 'sticky', top: 0, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+        color: 'white', padding: '15px', zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            vs {matchInfo.avversario || '...'}
-          </div>
+          <div style={{ fontSize: '14px', opacity: 0.9 }}>vs {matchInfo.avversario || '...'}</div>
         </div>
-
-        {/* SELETTORE TEMPI - PULSANTI GRANDI */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: '8px' 
-        }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
           {[1, 2, 3, 4].map(p => (
-            <button
-              key={p}
-              onClick={() => setCurrentPeriod(p)}
-              style={{
-                padding: '12px 8px',
-                background: currentPeriod === p ? '#f97316' : 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: currentPeriod === p ? '2px solid white' : '2px solid transparent',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                transition: 'all 0.2s'
-              }}
-            >
-              {p}°
-            </button>
+            <button key={p} onClick={() => setCurrentPeriod(p)} style={{
+              padding: '12px 8px', background: currentPeriod === p ? '#f97316' : 'rgba(255,255,255,0.2)',
+              color: 'white', border: currentPeriod === p ? '2px solid white' : '2px solid transparent',
+              borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
+            }}>{p}°</button>
           ))}
         </div>
       </div>
 
       <div style={{ padding: '15px', maxWidth: '600px', margin: '0 auto' }}>
         
-        {/* SCOREBOARD - NUMERI ENORMI */}
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '20px',
-          marginBottom: '20px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr auto 1fr', 
-            gap: '15px',
-            alignItems: 'center'
-          }}>
-            {/* CASA */}
+        {/* SCOREBOARD */}
+        <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '15px', alignItems: 'center' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>CASA</div>
-              <div style={{ 
-                fontSize: '64px', 
-                fontWeight: 'bold', 
-                color: '#1e3a8a',
-                lineHeight: 1
-              }}>
-                {scores.home}
-              </div>
+              <div style={{ fontSize: '64px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>{scores.home}</div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
-                <button 
-                  onClick={() => setScores(s => ({...s, home: Math.max(0, s.home - 1)}))}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    fontSize: '28px',
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  −
-                </button>
-                <button 
-                  onClick={() => setScores(s => ({...s, home: s.home + 1}))}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    fontSize: '28px',
-                    background: '#dcfce7',
-                    color: '#16a34a',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  +
-                </button>
+                <button onClick={() => setScores(s => ({...s, home: Math.max(0, s.home - 1)}))} style={{
+                  width: '56px', height: '56px', fontSize: '28px', background: '#fee2e2', color: '#dc2626',
+                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                }}>−</button>
+                <button onClick={() => setScores(s => ({...s, home: s.home + 1}))} style={{
+                  width: '56px', height: '56px', fontSize: '28px', background: '#dcfce7', color: '#16a34a',
+                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                }}>+</button>
               </div>
             </div>
-
-            {/* TIRI */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI</div>
-              <div style={{ 
-                fontSize: '32px', 
-                fontWeight: 'bold', 
-                color: '#f97316',
-                lineHeight: 1
-              }}>
-                {shots.for}
-              </div>
-              <button 
-                onClick={() => setShots(s => ({...s, for: s.for + 1}))}
-                style={{
-                  marginTop: '10px',
-                  padding: '10px 20px',
-                  background: '#f97316',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                + TIRO
-              </button>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{shots.for}</div>
+              <button onClick={() => setShots(s => ({...s, for: s.for + 1}))} style={{
+                marginTop: '10px', padding: '10px 20px', background: '#f97316', color: 'white',
+                border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+              }}>+ TIRO</button>
             </div>
-
-            {/* OSPITE */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>OSPITE</div>
-              <div style={{ 
-                fontSize: '64px', 
-                fontWeight: 'bold', 
-                color: '#dc2626',
-                lineHeight: 1
-              }}>
-                {scores.away}
-              </div>
+              <div style={{ fontSize: '64px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{scores.away}</div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
-                <button 
-                  onClick={() => setScores(s => ({...s, away: Math.max(0, s.away - 1)}))}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    fontSize: '28px',
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  −
-                </button>
-                <button 
-                  onClick={() => setScores(s => ({...s, away: s.away + 1}))}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    fontSize: '28px',
-                    background: '#dcfce7',
-                    color: '#16a34a',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  +
-                </button>
+                <button onClick={() => setScores(s => ({...s, away: Math.max(0, s.away - 1)}))} style={{
+                  width: '56px', height: '56px', fontSize: '28px', background: '#fee2e2', color: '#dc2626',
+                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                }}>−</button>
+                <button onClick={() => setScores(s => ({...s, away: s.away + 1}))} style={{
+                  width: '56px', height: '56px', fontSize: '28px', background: '#dcfce7', color: '#16a34a',
+                  border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold'
+                }}>+</button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* PULSANTE SALVA - GRANDE E VISIBILE */}
-        <button
-          onClick={saveToDatabase}
-          disabled={saving}
-          style={{
-            width: '100%',
-            padding: '20px',
-            background: saved ? '#22c55e' : saving ? '#94a3b8' : '#1e3a8a',
-            color: 'white',
-            border: 'none',
-            borderRadius: '12px',
-            fontSize: '20px',
-            fontWeight: 'bold',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            marginBottom: '20px',
-            boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)',
-            transition: 'all 0.2s'
-          }}
-        >
+        {/* PULSANTE SALVA */}
+        <button onClick={saveToDatabase} disabled={saving} style={{
+          width: '100%', padding: '20px', background: saved ? '#22c55e' : saving ? '#94a3b8' : '#1e3a8a',
+          color: 'white', border: 'none', borderRadius: '12px', fontSize: '20px', fontWeight: 'bold',
+          cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '20px',
+          boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
+        }}>
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
         </button>
 
-        {/* LISTA GIOCATORI */}
-        <div>
-          <h2 style={{ 
-            fontSize: '20px', 
-            color: '#1e293b',
-            marginBottom: '15px',
-            fontWeight: 'bold'
-          }}>
-            GIOCATORI ({players.length})
-          </h2>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {players.map(player => {
-              const stats = playerStats[player.id] || { goals: 0, assists: 0 }
-              return (
-                <div 
-                  key={player.id} 
-                  style={{
-                    background: 'white',
-                    borderRadius: '12px',
-                    padding: '15px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                    border: '1px solid #e2e8f0'
-                  }}
-                >
-                  {/* Info giocatore */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '12px',
-                    marginBottom: '12px'
+        {/* SEZIONE TITOLARI */}
+        <div style={{ marginBottom: '30px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
+              ⚽ TITOLARI ({titolari.length})
+            </h2>
+            <button onClick={() => setShowSubModal(true)} style={{
+              padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
+              borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+            }}>
+              🔄 Sostituzione
+            </button>
+          </div>
+
+          {titolari.length === 0 ? (
+            <div style={{ padding: '20px', background: '#fee2e2', borderRadius: '10px', textAlign: 'center', color: '#dc2626' }}>
+              Nessun titolare selezionato. Vai su "Formazione" per scegliere i titolari.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {titolari.map(player => {
+                const stats = playerStats[player.id] || { goals: 0, assists: 0 }
+                const minuti = playerMinutes[player.id] || 0
+                return (
+                  <div key={player.id} style={{
+                    background: 'white', borderRadius: '12px', padding: '15px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0'
                   }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                      color: 'white',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '20px',
-                      fontWeight: 'bold',
-                      flexShrink: 0
-                    }}>
-                      {player.numero_maglia}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '18px', 
-                        fontWeight: 'bold', 
-                        color: '#1e293b'
-                      }}>
-                        {player.nome_completo}
+                    {/* Info giocatore */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                      <div style={{
+                        width: '48px', height: '48px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                        color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', flexShrink: 0
+                      }}>{player.numero_maglia}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{player.nome_completo}</div>
+                        <div style={{ fontSize: '14px', color: '#64748b' }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
                       </div>
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: '#64748b',
-                        marginTop: '2px'
-                      }}>
-                        {player.ruolo === 'P' ? '🧤 Portiere' : 
-                         player.ruolo === 'D' ? '🛡️ Difensore' :
-                         player.ruolo === 'C' ? ' Centrocampista' :
-                         player.ruolo === 'A' ? '🎯 Attaccante' : player.ruolo}
+                    </div>
+
+                    {/* Minuti giocati */}
+                    <div style={{
+                      background: '#fef3c7', borderRadius: '10px', padding: '10px',
+                      textAlign: 'center', marginBottom: '10px'
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#92400e', marginBottom: '5px', fontWeight: 'bold' }}>⏱️ MINUTI GIOCATI</div>
+                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#92400e', lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
+                          width: '48px', height: '48px', fontSize: '24px', background: 'white',
+                          color: '#92400e', border: '2px solid #92400e', borderRadius: '10px',
+                          cursor: 'pointer', fontWeight: 'bold'
+                        }}>−5</button>
+                        <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
+                          width: '48px', height: '48px', fontSize: '24px', background: '#92400e',
+                          color: 'white', border: 'none', borderRadius: '10px',
+                          cursor: 'pointer', fontWeight: 'bold'
+                        }}>+5</button>
+                      </div>
+                    </div>
+
+                    {/* Reti e Assist */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '5px', fontWeight: 'bold' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#16a34a', lineHeight: 1, marginBottom: '8px' }}>{stats.goals}</div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
+                            width: '48px', height: '48px', fontSize: '24px', background: 'white',
+                            color: '#16a34a', border: '2px solid #16a34a', borderRadius: '10px',
+                            cursor: 'pointer', fontWeight: 'bold'
+                          }}>−</button>
+                          <button onClick={() => updatePlayerStat(player.id, 'goals', 1)} style={{
+                            width: '48px', height: '48px', fontSize: '24px', background: '#16a34a',
+                            color: 'white', border: 'none', borderRadius: '10px',
+                            cursor: 'pointer', fontWeight: 'bold'
+                          }}>+</button>
+                        </div>
+                      </div>
+                      <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#2563eb', marginBottom: '5px', fontWeight: 'bold' }}>🅰️ ASSIST</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2563eb', lineHeight: 1, marginBottom: '8px' }}>{stats.assists}</div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
+                            width: '48px', height: '48px', fontSize: '24px', background: 'white',
+                            color: '#2563eb', border: '2px solid #2563eb', borderRadius: '10px',
+                            cursor: 'pointer', fontWeight: 'bold'
+                          }}>−</button>
+                          <button onClick={() => updatePlayerStat(player.id, 'assists', 1)} style={{
+                            width: '48px', height: '48px', fontSize: '24px', background: '#2563eb',
+                            color: 'white', border: 'none', borderRadius: '10px',
+                            cursor: 'pointer', fontWeight: 'bold'
+                          }}>+</button>
+                        </div>
                       </div>
                     </div>
                   </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
-                  {/* Contatori Reti e Assist - PULSANTI GRANDI */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: '10px'
-                  }}>
-                    {/* RETI */}
-                    <div style={{
-                      background: '#dcfce7',
-                      borderRadius: '10px',
-                      padding: '12px',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '5px', fontWeight: 'bold' }}>
-                        ⚽ RETI
-                      </div>
-                      <div style={{ 
-                        fontSize: '32px', 
-                        fontWeight: 'bold', 
-                        color: '#16a34a',
-                        lineHeight: 1,
-                        marginBottom: '8px'
-                      }}>
-                        {stats.goals}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button 
-                          onClick={() => updatePlayerStat(player.id, 'goals', -1)}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            fontSize: '24px',
-                            background: 'white',
-                            color: '#16a34a',
-                            border: '2px solid #16a34a',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          −
-                        </button>
-                        <button 
-                          onClick={() => updatePlayerStat(player.id, 'goals', 1)}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            fontSize: '24px',
-                            background: '#16a34a',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* ASSIST */}
-                    <div style={{
-                      background: '#dbeafe',
-                      borderRadius: '10px',
-                      padding: '12px',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '12px', color: '#2563eb', marginBottom: '5px', fontWeight: 'bold' }}>
-                        ️ ASSIST
-                      </div>
-                      <div style={{ 
-                        fontSize: '32px', 
-                        fontWeight: 'bold', 
-                        color: '#2563eb',
-                        lineHeight: 1,
-                        marginBottom: '8px'
-                      }}>
-                        {stats.assists}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button 
-                          onClick={() => updatePlayerStat(player.id, 'assists', -1)}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            fontSize: '24px',
-                            background: 'white',
-                            color: '#2563eb',
-                            border: '2px solid #2563eb',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          −
-                        </button>
-                        <button 
-                          onClick={() => updatePlayerStat(player.id, 'assists', 1)}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            fontSize: '24px',
-                            background: '#2563eb',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
+        {/* SEZIONE PANCHINA */}
+        {panchina.length > 0 && (
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
+              🪑 PANCHINA ({panchina.length})
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {panchina.map(player => (
+                <div key={player.id} style={{
+                  background: '#f8fafc', borderRadius: '10px', padding: '12px',
+                  border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px'
+                }}>
+                  <div style={{
+                    width: '40px', height: '40px', background: '#94a3b8', color: 'white',
+                    borderRadius: '50%', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: '18px', fontWeight: 'bold'
+                  }}>{player.numero_maglia}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>{player.nome_completo}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
                   </div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SEZIONE SOSTITUZIONI */}
+        {sostituzioni.length > 0 && (
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
+              🔄 SOSTITUZIONI ({sostituzioni.length})
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {sostituzioni.map((sub, index) => {
+                const uscente = players.find(p => p.id === sub.giocatore_uscente_id)
+                const entrante = players.find(p => p.id === sub.giocatore_entrante_id)
+                return (
+                  <div key={index} style={{
+                    background: '#fff7ed', borderRadius: '10px', padding: '12px',
+                    border: '1px solid #fdba74', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '4px' }}>
+                        <strong>{sub.minuto_sostituzione}'</strong>
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#dc2626' }}>
+                        ❌ {uscente?.nome_completo || 'Sconosciuto'}
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#16a34a' }}>
+                        ✅ {entrante?.nome_completo || 'Sconosciuto'}
+                      </div>
+                    </div>
+                    <button onClick={() => rimuoviSostituzione(index)} style={{
+                      padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none',
+                      borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold'
+                    }}>🗑️</button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL SOSTITUZIONE */}
+      {showSubModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000, padding: '20px'
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '16px', padding: '25px',
+            maxWidth: '500px', width: '100%', maxHeight: '80vh', overflowY: 'auto'
+          }}>
+            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>
+              🔄 Nuova Sostituzione
+            </h2>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
+                Giocatore che ESCE ❌
+              </label>
+              <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{
+                width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
+              }}>
+                <option value="">-- Seleziona --</option>
+                {titolari.map(p => (
+                  <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
+                Giocatore che ENTRA ✅
+              </label>
+              <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{
+                width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
+              }}>
+                <option value="">-- Seleziona --</option>
+                {panchina.map(p => (
+                  <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
+                Minuto ⏱️
+              </label>
+              <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)}
+                placeholder="es. 15" style={{
+                  width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
+                }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setShowSubModal(false); setSubUscente(''); setSubEntrante(''); setSubMinuto('') }} style={{
+                flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none',
+                borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer'
+              }}>Annulla</button>
+              <button onClick={aggiungiSostituzione} style={{
+                flex: 2, padding: '14px', background: '#f97316', color: 'white', border: 'none',
+                borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer'
+              }}>✓ Conferma Sostituzione</button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
