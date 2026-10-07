@@ -94,7 +94,7 @@ export default function Home() {
         {/* Pulsante Nuova Partita */}
         <div style={{ marginBottom: '20px' }}>
           <Link 
-            href="/gara/nuova"
+            href="/nuova-gara"
             style={{
               display: 'block',
               width: '100%',
