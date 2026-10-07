@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 export default function GaraPage() {
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
   const supabase = createClient()
   
@@ -19,15 +20,18 @@ export default function GaraPage() {
   const [sostituzioni, setSostituzioni] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '' })
+  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '', luogo: '' })
   
-  // Modal sostituzione
   const [showSubModal, setShowSubModal] = useState(false)
   const [subUscente, setSubUscente] = useState('')
   const [subEntrante, setSubEntrante] = useState('')
   const [subMinuto, setSubMinuto] = useState('')
 
-  // Carica dati all'apertura
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [editForm, setEditForm] = useState({ avversario: '', luogo: '', data_gara: '' })
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => {
     const loadData = async () => {
       const { data: match } = await supabase
@@ -37,30 +41,32 @@ export default function GaraPage() {
         .single()
       
       if (match) {
-        setMatchInfo({ avversario: match.avversario || '', data: match.data_gara || '' })
+        setMatchInfo({ 
+          avversario: match.avversario || '', 
+          data: match.data_gara || '',
+          luogo: match.luogo || ''
+        })
+        setEditForm({
+          avversario: match.avversario || '',
+          luogo: match.luogo || '',
+          data_gara: match.data_gara || ''
+        })
         setScores({ home: match.risultato_casa || 0, away: match.risultato_ospite || 0 })
         
-        // Carica giocatori
         const { data: playersData } = await supabase
           .from('giocatori')
           .select('*')
           .eq('squadra_id', match.squadra_id)
           .order('numero_maglia')
-        
         if (playersData) setPlayers(playersData)
         
-        // Carica titolari
         const { data: formazioni } = await supabase
           .from('formazioni')
           .select('giocatore_id')
           .eq('gara_id', id)
           .eq('titolare', true)
+        if (formazioni) setTitolariIds(new Set(formazioni.map(f => f.giocatore_id)))
         
-        if (formazioni) {
-          setTitolariIds(new Set(formazioni.map(f => f.giocatore_id)))
-        }
-        
-        // Carica tempi e azioni
         const { data: tempi } = await supabase
           .from('tempi_gara')
           .select('*')
@@ -74,7 +80,6 @@ export default function GaraPage() {
             .from('azioni_gioco')
             .select('*')
             .eq('tempo_id', tempoCorrente.id)
-          
           if (azioni) {
             const stats: Record<string, {goals: number, assists: number}> = {}
             azioni.forEach(a => {
@@ -83,27 +88,21 @@ export default function GaraPage() {
             setPlayerStats(stats)
           }
           
-          // Carica minuti giocati
           const { data: minutiData } = await supabase
             .from('minuti_giocati')
             .select('*')
             .eq('gara_id', id)
-          
           if (minutiData) {
             const minutes: Record<string, number> = {}
-            minutiData.forEach(m => {
-              minutes[m.giocatore_id] = m.minuti || 0
-            })
+            minutiData.forEach(m => { minutes[m.giocatore_id] = m.minuti || 0 })
             setPlayerMinutes(minutes)
           }
           
-          // Carica sostituzioni
           const { data: subsData } = await supabase
             .from('sostituzioni')
             .select('*')
             .eq('gara_id', id)
             .order('minuto_sostituzione')
-          
           if (subsData) setSostituzioni(subsData)
         }
       }
@@ -111,19 +110,14 @@ export default function GaraPage() {
     loadData()
   }, [id])
 
-  // Salva tutto su Supabase
   const saveToDatabase = async () => {
     setSaving(true)
     setSaved(false)
-    
     try {
-      // 1. Aggiorna risultato gara
-      await supabase
-        .from('gare')
+      await supabase.from('gare')
         .update({ risultato_casa: scores.home, risultato_ospite: scores.away })
         .eq('id', id)
       
-      // 2. Aggiorna o crea tempo corrente
       const { data: tempoEsistente } = await supabase
         .from('tempi_gara')
         .select('id')
@@ -132,29 +126,22 @@ export default function GaraPage() {
         .single()
       
       let tempoId = tempoEsistente?.id
-      
       if (!tempoId) {
         const { data: nuovoTempo } = await supabase
           .from('tempi_gara')
           .insert({
-            gara_id: id,
-            numero_tempo: currentPeriod,
-            risultato_casa: scores.home,
-            risultato_ospite: scores.away,
-            tiri_effettuati: shots.for,
-            tiri_subiti: shots.against
+            gara_id: id, numero_tempo: currentPeriod,
+            risultato_casa: scores.home, risultato_ospite: scores.away,
+            tiri_effettuati: shots.for, tiri_subiti: shots.against
           })
-          .select()
-          .single()
+          .select().single()
         tempoId = nuovoTempo.id
       } else {
-        await supabase
-          .from('tempi_gara')
+        await supabase.from('tempi_gara')
           .update({ tiri_effettuati: shots.for, tiri_subiti: shots.against })
           .eq('id', tempoId)
       }
       
-      // 3. Salva azioni giocatori (reti/assist)
       for (const [playerId, stats] of Object.entries(playerStats)) {
         const { data: azioneEsistente } = await supabase
           .from('azioni_gioco')
@@ -162,114 +149,75 @@ export default function GaraPage() {
           .eq('tempo_id', tempoId)
           .eq('giocatore_id', playerId)
           .single()
-        
         if (azioneEsistente) {
-          await supabase
-            .from('azioni_gioco')
+          await supabase.from('azioni_gioco')
             .update({ reti: stats.goals, assist: stats.assists })
             .eq('id', azioneEsistente.id)
         } else {
-          await supabase
-            .from('azioni_gioco')
+          await supabase.from('azioni_gioco')
             .insert({
-              tempo_id: tempoId,
-              giocatore_id: playerId,
-              tipo_presenza: 'Titolare',
-              reti: stats.goals,
-              assist: stats.assists
+              tempo_id: tempoId, giocatore_id: playerId,
+              tipo_presenza: 'Titolare', reti: stats.goals, assist: stats.assists
             })
         }
       }
       
-      // 4. Salva minuti giocati
-      await supabase
-        .from('minuti_giocati')
-        .delete()
-        .eq('gara_id', id)
-        .eq('tempo_id', tempoId)
-      
+      await supabase.from('minuti_giocati').delete().eq('gara_id', id).eq('tempo_id', tempoId)
       for (const [playerId, minuti] of Object.entries(playerMinutes)) {
         if (minuti > 0) {
-          await supabase
-            .from('minuti_giocati')
-            .insert({
-              gara_id: id,
-              tempo_id: tempoId,
-              giocatore_id: playerId,
-              minuti: minuti
-            })
+          await supabase.from('minuti_giocati')
+            .insert({ gara_id: id, tempo_id: tempoId, giocatore_id: playerId, minuti })
         }
       }
       
-      // 5. Salva sostituzioni
-      await supabase
-        .from('sostituzioni')
-        .delete()
-        .eq('gara_id', id)
-      
+      await supabase.from('sostituzioni').delete().eq('gara_id', id)
       for (const sub of sostituzioni) {
-        await supabase
-          .from('sostituzioni')
+        await supabase.from('sostituzioni')
           .insert({
-            gara_id: id,
-            tempo_id: tempoId,
+            gara_id: id, tempo_id: tempoId,
             giocatore_uscente_id: sub.giocatore_uscente_id,
             giocatore_entrante_id: sub.giocatore_entrante_id,
             minuto_sostituzione: sub.minuto_sostituzione
           })
       }
-      
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
-      console.error('Errore salvataggio:', error)
+      console.error('Errore:', error)
       alert('Errore nel salvataggio!')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const updatePlayerStat = (playerId: string, field: 'goals' | 'assists', delta: number) => {
     setPlayerStats(prev => {
       const current = prev[playerId] || { goals: 0, assists: 0 }
-      return {
-        ...prev,
-        [playerId]: { ...current, [field]: Math.max(0, current[field] + delta) }
-      }
+      return { ...prev, [playerId]: { ...current, [field]: Math.max(0, current[field] + delta) } }
     })
   }
 
   const updatePlayerMinutes = (playerId: string, delta: number) => {
     setPlayerMinutes(prev => {
       const current = prev[playerId] || 0
-      const newValue = Math.max(0, Math.min(30, current + delta))
-      return { ...prev, [playerId]: newValue }
+      return { ...prev, [playerId]: Math.max(0, Math.min(30, current + delta)) }
     })
   }
 
   const aggiungiSostituzione = () => {
     if (!subUscente || !subEntrante || !subMinuto) {
-      alert('Compila tutti i campi della sostituzione')
+      alert('Compila tutti i campi')
       return
     }
-    
-    const nuovaSub = {
+    setSostituzioni(prev => [...prev, {
       giocatore_uscente_id: subUscente,
       giocatore_entrante_id: subEntrante,
       minuto_sostituzione: parseInt(subMinuto)
-    }
-    
-    setSostituzioni(prev => [...prev, nuovaSub])
-    
-    // Rimuovi uscente dai titolari, aggiungi entrante
+    }])
     setTitolariIds(prev => {
       const newSet = new Set(prev)
       newSet.delete(subUscente)
       newSet.add(subEntrante)
       return newSet
     })
-    
-    // Reset modal
     setShowSubModal(false)
     setSubUscente('')
     setSubEntrante('')
@@ -278,6 +226,49 @@ export default function GaraPage() {
 
   const rimuoviSostituzione = (index: number) => {
     setSostituzioni(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const salvaModifiche = async () => {
+    if (!editForm.avversario.trim()) {
+      alert('Inserisci il nome dell\'avversario')
+      return
+    }
+    try {
+      const { error } = await supabase.from('gare')
+        .update({
+          avversario: editForm.avversario.trim(),
+          luogo: editForm.luogo.trim() || null,
+          data_gara: editForm.data_gara
+        })
+        .eq('id', id)
+      if (error) throw error
+      setMatchInfo({
+        avversario: editForm.avversario.trim(),
+        data: editForm.data_gara,
+        luogo: editForm.luogo.trim()
+      })
+      setShowEditModal(false)
+      alert('✅ Partita aggiornata!')
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore durante la modifica')
+    }
+  }
+
+  const eliminaPartita = async () => {
+    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate (gol, assist, minuti, formazioni, sostituzioni). Sei sicuro?')) {
+      return
+    }
+    setDeleting(true)
+    try {
+      const { error } = await supabase.from('gare').delete().eq('id', id)
+      if (error) throw error
+      alert('✅ Partita eliminata')
+      router.push('/dashboard')
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('Errore durante l\'eliminazione')
+    } finally { setDeleting(false) }
   }
 
   const getRuoloIcon = (ruolo: string) => {
@@ -295,7 +286,6 @@ export default function GaraPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '100px' }}>
-      {/* HEADER FISSO */}
       <div style={{
         position: 'sticky', top: 0, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
         color: 'white', padding: '15px', zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
@@ -316,10 +306,9 @@ export default function GaraPage() {
 
       <div style={{ padding: '15px', maxWidth: '600px', margin: '0 auto' }}>
         
-                {/* SCOREBOARD */}
+        {/* SCOREBOARD A 4 COLONNE */}
         <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', alignItems: 'center' }}>
-            {/* CASA */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>CASA</div>
               <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>{scores.home}</div>
@@ -334,8 +323,6 @@ export default function GaraPage() {
                 }}>+</button>
               </div>
             </div>
-
-            {/* TIRI NOSTRI */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI NOSTRI</div>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{shots.for}</div>
@@ -344,8 +331,6 @@ export default function GaraPage() {
                 border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
               }}>+ TIRO</button>
             </div>
-
-            {/* TIRI SUBITI */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>TIRI SUBITI</div>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{shots.against}</div>
@@ -354,8 +339,6 @@ export default function GaraPage() {
                 border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer'
               }}>+ TIRO</button>
             </div>
-
-            {/* OSPITE */}
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>OSPITE</div>
               <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{scores.away}</div>
@@ -377,27 +360,27 @@ export default function GaraPage() {
         <button onClick={saveToDatabase} disabled={saving} style={{
           width: '100%', padding: '20px', background: saved ? '#22c55e' : saving ? '#94a3b8' : '#1e3a8a',
           color: 'white', border: 'none', borderRadius: '12px', fontSize: '20px', fontWeight: 'bold',
-          cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '20px',
+          cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '10px',
           boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
         }}>
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
         </button>
 
-                {/* PULSANTI MODIFICA ED ELIMINA */}
+        {/* PULSANTI MODIFICA ED ELIMINA */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           <button onClick={() => setShowEditModal(true)} style={{
             flex: 1, padding: '15px', background: '#3b82f6', color: 'white',
-            border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+            border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            ✏️ MODIFICA PARTITA
+            ✏️ MODIFICA
           </button>
           <button onClick={() => setShowDeleteModal(true)} style={{
             flex: 1, padding: '15px', background: '#dc2626', color: 'white',
-            border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold',
+            border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            🗑️ ELIMINA PARTITA
+            🗑️ ELIMINA
           </button>
         </div>
 
@@ -407,17 +390,21 @@ export default function GaraPage() {
             <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
               ⚽ TITOLARI ({titolari.length})
             </h2>
-            <button onClick={() => setShowSubModal(true)} style={{
-              padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
-              borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
-            }}>
-              🔄 Sostituzione
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <a href={`/formazione/${id}`} style={{
+                padding: '10px 15px', background: '#8b5cf6', color: 'white',
+                borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
+              }}> Formazione</a>
+              <button onClick={() => setShowSubModal(true)} style={{
+                padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
+                borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+              }}> Sostituzione</button>
+            </div>
           </div>
 
           {titolari.length === 0 ? (
             <div style={{ padding: '20px', background: '#fee2e2', borderRadius: '10px', textAlign: 'center', color: '#dc2626' }}>
-              Nessun titolare selezionato. Vai su "Formazione" per scegliere i titolari.
+              Nessun titolare selezionato. Clicca "👥 Formazione" per scegliere i titolari.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -429,7 +416,6 @@ export default function GaraPage() {
                     background: 'white', borderRadius: '12px', padding: '15px',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0'
                   }}>
-                    {/* Info giocatore */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
                         width: '48px', height: '48px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
@@ -442,28 +428,21 @@ export default function GaraPage() {
                       </div>
                     </div>
 
-                    {/* Minuti giocati */}
-                    <div style={{
-                      background: '#fef3c7', borderRadius: '10px', padding: '10px',
-                      textAlign: 'center', marginBottom: '10px'
-                    }}>
+                    <div style={{ background: '#fef3c7', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
                       <div style={{ fontSize: '12px', color: '#92400e', marginBottom: '5px', fontWeight: 'bold' }}>⏱️ MINUTI GIOCATI</div>
                       <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#92400e', lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
-                          width: '48px', height: '48px', fontSize: '24px', background: 'white',
-                          color: '#92400e', border: '2px solid #92400e', borderRadius: '10px',
-                          cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: 'white',
+                          color: '#92400e', border: '2px solid #92400e', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>−5</button>
                         <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
-                          width: '48px', height: '48px', fontSize: '24px', background: '#92400e',
-                          color: 'white', border: 'none', borderRadius: '10px',
-                          cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: '#92400e',
+                          color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>+5</button>
                       </div>
                     </div>
 
-                    {/* Reti e Assist */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                       <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
                         <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '5px', fontWeight: 'bold' }}>⚽ RETI</div>
@@ -471,13 +450,11 @@ export default function GaraPage() {
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
                             width: '48px', height: '48px', fontSize: '24px', background: 'white',
-                            color: '#16a34a', border: '2px solid #16a34a', borderRadius: '10px',
-                            cursor: 'pointer', fontWeight: 'bold'
+                            color: '#16a34a', border: '2px solid #16a34a', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', 1)} style={{
                             width: '48px', height: '48px', fontSize: '24px', background: '#16a34a',
-                            color: 'white', border: 'none', borderRadius: '10px',
-                            cursor: 'pointer', fontWeight: 'bold'
+                            color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
@@ -487,13 +464,11 @@ export default function GaraPage() {
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
                             width: '48px', height: '48px', fontSize: '24px', background: 'white',
-                            color: '#2563eb', border: '2px solid #2563eb', borderRadius: '10px',
-                            cursor: 'pointer', fontWeight: 'bold'
+                            color: '#2563eb', border: '2px solid #2563eb', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', 1)} style={{
                             width: '48px', height: '48px', fontSize: '24px', background: '#2563eb',
-                            color: 'white', border: 'none', borderRadius: '10px',
-                            cursor: 'pointer', fontWeight: 'bold'
+                            color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
@@ -505,12 +480,9 @@ export default function GaraPage() {
           )}
         </div>
 
-        {/* SEZIONE PANCHINA */}
         {panchina.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
-              🪑 PANCHINA ({panchina.length})
-            </h2>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>🪑 PANCHINA ({panchina.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {panchina.map(player => (
                 <div key={player.id} style={{
@@ -532,12 +504,9 @@ export default function GaraPage() {
           </div>
         )}
 
-        {/* SEZIONE SOSTITUZIONI */}
         {sostituzioni.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
-              🔄 SOSTITUZIONI ({sostituzioni.length})
-            </h2>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>🔄 SOSTITUZIONI ({sostituzioni.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {sostituzioni.map((sub, index) => {
                 const uscente = players.find(p => p.id === sub.giocatore_uscente_id)
@@ -548,15 +517,9 @@ export default function GaraPage() {
                     border: '1px solid #fdba74', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '4px' }}>
-                        <strong>{sub.minuto_sostituzione}'</strong>
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#dc2626' }}>
-                        ❌ {uscente?.nome_completo || 'Sconosciuto'}
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#16a34a' }}>
-                        ✅ {entrante?.nome_completo || 'Sconosciuto'}
-                      </div>
+                      <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '4px' }}><strong>{sub.minuto_sostituzione}'</strong></div>
+                      <div style={{ fontSize: '14px', color: '#dc2626' }}>❌ {uscente?.nome_completo || 'Sconosciuto'}</div>
+                      <div style={{ fontSize: '14px', color: '#16a34a' }}>✅ {entrante?.nome_completo || 'Sconosciuto'}</div>
                     </div>
                     <button onClick={() => rimuoviSostituzione(index)} style={{
                       padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none',
@@ -577,61 +540,86 @@ export default function GaraPage() {
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', padding: '25px',
-            maxWidth: '500px', width: '100%', maxHeight: '80vh', overflowY: 'auto'
-          }}>
-            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>
-              🔄 Nuova Sostituzione
-            </h2>
-
+          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
+            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>🔄 Nuova Sostituzione</h2>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
-                Giocatore che ESCE ❌
-              </label>
-              <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{
-                width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
-              }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Giocatore che ESCE ❌</label>
+              <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }}>
                 <option value="">-- Seleziona --</option>
-                {titolari.map(p => (
-                  <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>
-                ))}
+                {titolari.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
               </select>
             </div>
-
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
-                Giocatore che ENTRA ✅
-              </label>
-              <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{
-                width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
-              }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Giocatore che ENTRA ✅</label>
+              <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }}>
                 <option value="">-- Seleziona --</option>
-                {panchina.map(p => (
-                  <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>
-                ))}
+                {panchina.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
               </select>
             </div>
-
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>
-                Minuto ⏱️
-              </label>
-              <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)}
-                placeholder="es. 15" style={{
-                  width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px'
-                }} />
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Minuto ⏱️</label>
+              <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)} placeholder="es. 15" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }} />
             </div>
-
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { setShowSubModal(false); setSubUscente(''); setSubEntrante(''); setSubMinuto('') }} style={{
-                flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none',
-                borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer'
-              }}>Annulla</button>
-              <button onClick={aggiungiSostituzione} style={{
-                flex: 2, padding: '14px', background: '#f97316', color: 'white', border: 'none',
-                borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer'
-              }}>✓ Conferma Sostituzione</button>
+              <button onClick={() => { setShowSubModal(false); setSubUscente(''); setSubEntrante(''); setSubMinuto('') }} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={aggiungiSostituzione} style={{ flex: 2, padding: '14px', background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>✓ Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL MODIFICA PARTITA */}
+      {showEditModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000, padding: '20px'
+        }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
+            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>✏️ Modifica Partita</h2>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Avversario *</label>
+              <input type="text" value={editForm.avversario} onChange={(e) => setEditForm({...editForm, avversario: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Luogo</label>
+              <input type="text" value={editForm.luogo} onChange={(e) => setEditForm({...editForm, luogo: e.target.value})} placeholder="es. Campo Comunale" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Data *</label>
+              <input type="date" value={editForm.data_gara} onChange={(e) => setEditForm({...editForm, data_gara: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={salvaModifiche} style={{ flex: 2, padding: '14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>💾 SALVA MODIFICHE</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ELIMINA PARTITA */}
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000, padding: '20px'
+        }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
+            <h2 style={{ color: '#dc2626', fontSize: '22px', marginTop: 0, marginBottom: '15px' }}>️ Elimina Partita</h2>
+            <p style={{ color: '#64748b', fontSize: '16px', marginBottom: '20px', lineHeight: '1.5' }}>
+              Questa azione eliminerà <strong>definitivamente</strong> la partita e tutte le statistiche associate:
+            </p>
+            <ul style={{ color: '#64748b', marginBottom: '20px', paddingLeft: '20px' }}>
+              <li>Formazione titolare</li>
+              <li>Reti e assist dei giocatori</li>
+              <li>Minuti giocati</li>
+              <li>Sostituzioni</li>
+              <li>Tiri effettuati/subiti</li>
+            </ul>
+            <p style={{ color: '#dc2626', fontWeight: 'bold', marginBottom: '20px' }}>Questa azione NON può essere annullata.</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>Annulla</button>
+              <button onClick={eliminaPartita} disabled={deleting} style={{ flex: 2, padding: '14px', background: deleting ? '#94a3b8' : '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? '⏳ ELIMINAZIONE...' : '🗑️ ELIMINA DEFINITIVAMENTE'}</button>
             </div>
           </div>
         </div>
