@@ -148,7 +148,7 @@ export default function FormazionePage() {
           fontWeight: 'bold', cursor: saving || titolari.size < 7 ? 'not-allowed' : 'pointer',
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 100
         }}>
-          {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
+          {saving ? ' SALVATAGGIO...' : saved ? '✅ FORMAZIONE SALVATA!' : `💾 SALVA FORMAZIONE (${titolari.size} titolari)`}
         </button>
       </div>
     </div>
