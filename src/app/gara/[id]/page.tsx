@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import Link from 'next/link'
 
 export default function GaraPage() {
   const params = useParams()
@@ -256,7 +257,7 @@ export default function GaraPage() {
   }
 
   const eliminaPartita = async () => {
-    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate (gol, assist, minuti, formazioni, sostituzioni). Sei sicuro?')) {
+    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate (gol, assist, minuti, formazioni, sostituzioni). Sei sicuro?')) {
       return
     }
     setDeleting(true)
@@ -286,13 +287,28 @@ export default function GaraPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '100px' }}>
+      {/* HEADER FISSO CON PULSANTE TORNA ALLA DASHBOARD */}
       <div style={{
         position: 'sticky', top: 0, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
         color: 'white', padding: '15px', zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>vs {matchInfo.avversario || '...'}</div>
+        {/* Riga superiore: Torna alla Dashboard + info partita */}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+          <Link href="/dashboard" style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 14px', background: 'rgba(255,255,255,0.2)',
+            color: 'white', textDecoration: 'none', borderRadius: '8px',
+            fontSize: '14px', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.3)'
+          }}>
+            ← Dashboard
+          </Link>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: '14px', opacity: 0.9 }}>
+            vs {matchInfo.avversario || '...'}
+          </div>
+          <div style={{ width: '100px' }}></div>
         </div>
+        
+        {/* Selettore tempi */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
           {[1, 2, 3, 4].map(p => (
             <button key={p} onClick={() => setCurrentPeriod(p)} style={{
@@ -363,7 +379,7 @@ export default function GaraPage() {
           cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '10px',
           boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
         }}>
-          {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
+          {saving ? ' SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
         </button>
 
         {/* PULSANTI MODIFICA ED ELIMINA */}
@@ -386,25 +402,25 @@ export default function GaraPage() {
 
         {/* SEZIONE TITOLARI */}
         <div style={{ marginBottom: '30px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
               ⚽ TITOLARI ({titolari.length})
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <a href={`/formazione/${id}`} style={{
+              <Link href={`/formazione/${id}`} style={{
                 padding: '10px 15px', background: '#8b5cf6', color: 'white',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
-              }}> Formazione</a>
+              }}>👥 Formazione</Link>
               <button onClick={() => setShowSubModal(true)} style={{
                 padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
-              }}> Sostituzione</button>
+              }}>🔄 Sostituzione</button>
             </div>
           </div>
 
           {titolari.length === 0 ? (
             <div style={{ padding: '20px', background: '#fee2e2', borderRadius: '10px', textAlign: 'center', color: '#dc2626' }}>
-              Nessun titolare selezionato. Clicca "👥 Formazione" per scegliere i titolari.
+              Nessun titolare selezionato. Clicca " Formazione" per scegliere i titolari.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -506,7 +522,7 @@ export default function GaraPage() {
 
         {sostituzioni.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>🔄 SOSTITUZIONI ({sostituzioni.length})</h2>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}> SOSTITUZIONI ({sostituzioni.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {sostituzioni.map((sub, index) => {
                 const uscente = players.find(p => p.id === sub.giocatore_uscente_id)
@@ -576,7 +592,7 @@ export default function GaraPage() {
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
-            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>✏️ Modifica Partita</h2>
+            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>️ Modifica Partita</h2>
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Avversario *</label>
               <input type="text" value={editForm.avversario} onChange={(e) => setEditForm({...editForm, avversario: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
@@ -605,7 +621,7 @@ export default function GaraPage() {
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
-            <h2 style={{ color: '#dc2626', fontSize: '22px', marginTop: 0, marginBottom: '15px' }}>️ Elimina Partita</h2>
+            <h2 style={{ color: '#dc2626', fontSize: '22px', marginTop: 0, marginBottom: '15px' }}>⚠️ Elimina Partita</h2>
             <p style={{ color: '#64748b', fontSize: '16px', marginBottom: '20px', lineHeight: '1.5' }}>
               Questa azione eliminerà <strong>definitivamente</strong> la partita e tutte le statistiche associate:
             </p>
