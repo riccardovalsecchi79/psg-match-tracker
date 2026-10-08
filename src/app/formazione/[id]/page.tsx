@@ -21,12 +21,18 @@ interface Squadra {
   categoria: string
 }
 
+// Estrae l'anno dal nome squadra (es. "2014 A" → "2014", "2016/17 Mista" → "2016/17")
+function estraiAnno(nomeSquadra: string): string {
+  const match = nomeSquadra.trim().match(/^(\d{4}(?:\/\d{2})?)/)
+  return match ? match[1] : ''
+}
+
 export default function FormazionePage() {
   const router = useRouter()
   const params = useParams()
   const id = params.id as string
   const supabase = createClient()
-  const [tema, setTema] = useState(TEMI.home)
+  const [tema, setTema] = useState(TEMI.team)
   
   const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
   const [tutteSquadre, setTutteSquadre] = useState<Squadra[]>([])
@@ -37,6 +43,7 @@ export default function FormazionePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [squadreCompatibili, setSquadreCompatibili] = useState<Squadra[]>([])
 
   useEffect(() => {
     setTema(getTema())
@@ -55,31 +62,30 @@ export default function FormazionePage() {
 
     const loadData = async () => {
       try {
-        const { data: squadreData, error: squadreError } = await supabase
+        const { data: squadreData } = await supabase
           .from('squadre')
           .select('*')
           .order('categoria', { ascending: true })
         
-        if (squadreError) {
-          console.error('Errore caricamento squadre:', squadreError)
-          return
-        }
-        
         if (squadreData) {
           setTutteSquadre(squadreData as Squadra[])
-          const altraSquadra = squadreData.find(s => s.id !== squadraId)
-          if (altraSquadra) setSquadraSelezionataExtra(altraSquadra.id)
+          
+          // Filtra solo squadre della stessa annata (esclusa la squadra corrente)
+          const annoCorrente = estraiAnno(squadraNome || '')
+          const compatibili = (squadreData as Squadra[]).filter(s => 
+            s.id !== squadraId && estraiAnno(s.nome_squadra) === annoCorrente
+          )
+          setSquadreCompatibili(compatibili)
+          
+          if (compatibili.length > 0) {
+            setSquadraSelezionataExtra(compatibili[0].id)
+          }
         }
 
-        const { data: giocatoriData, error: giocatoriError } = await supabase
+        const { data: giocatoriData } = await supabase
           .from('giocatori')
           .select('*, squadre(nome_squadra)')
           .order('numero_maglia', { ascending: true })
-        
-        if (giocatoriError) {
-          console.error('Errore caricamento giocatori:', giocatoriError)
-          return
-        }
         
         if (giocatoriData) {
           const giocatoriConSquadra = giocatoriData.map(g => ({
@@ -99,17 +105,12 @@ export default function FormazionePage() {
 
   const caricaTitolari = async (tempo: number) => {
     try {
-      const { data: formazioni, error } = await supabase
+      const { data: formazioni } = await supabase
         .from('formazioni')
         .select('giocatore_id')
         .eq('gara_id', id)
         .eq('numero_tempo', tempo)
         .eq('titolare', true)
-      
-      if (error) {
-        console.error('Errore caricamento formazioni:', error)
-        return
-      }
       
       if (formazioni) {
         setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
@@ -211,7 +212,7 @@ export default function FormazionePage() {
   }
 
   const getRuoloIcon = (ruolo: string) => {
-    switch (ruolo) { case 'P': return '🧤'; case 'D': return '️'; case 'C': return '🎽'; case 'A': return '🎯'; default: return '' }
+    switch (ruolo) { case 'P': return '🧤'; case 'D': return '️'; case 'C': return ''; case 'A': return '🎯'; default: return '' }
   }
 
   const getRuoloLabel = (ruolo: string) => {
@@ -221,7 +222,6 @@ export default function FormazionePage() {
   const giocatoriSquadraPrincipale = tuttiGiocatori.filter(g => g.squadra_id === squadraInfo.id)
   const giocatoriSquadraExtra = tuttiGiocatori.filter(g => g.squadra_id === squadraSelezionataExtra)
   const nomeSquadraExtra = tutteSquadre.find(s => s.id === squadraSelezionataExtra)?.nome_squadra || ''
-  const isTemaA = tema.nomeTema === 'A'
 
   return (
     <div style={{ minHeight: '100vh', background: tema.background, padding: '20px', paddingBottom: '120px' }}>
@@ -313,6 +313,7 @@ export default function FormazionePage() {
           </div>
         </div>
 
+        {/* SEZIONE 1: GIOCATORI DELLA SQUADRA PRINCIPALE */}
         <div style={{ marginBottom: '25px' }}>
           <h2 style={{ fontSize: '18px', color: tema.textPrimary, fontWeight: '900', marginBottom: '12px', paddingBottom: '8px', borderBottom: `2px solid ${tema.accent1}` }}>
             ⚽ {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
@@ -323,7 +324,7 @@ export default function FormazionePage() {
               return (
                 <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
                   display: 'flex', alignItems: 'center', padding: '12px',
-                  background: isTitolare ? (isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)') : tema.backgroundCard,
+                  background: isTitolare ? 'rgba(249,115,22,0.2)' : tema.backgroundCard,
                   border: isTitolare ? `2px solid ${tema.accent1}` : `2px solid ${tema.borderCard}`,
                   borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%'
                 }}>
@@ -351,62 +352,65 @@ export default function FormazionePage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '25px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '18px', color: tema.accent1, fontWeight: '900', margin: 0, flex: 1 }}>
-              🔄 Giocatori di altre squadre
-            </h2>
-            <select value={squadraSelezionataExtra} onChange={(e) => setSquadraSelezionataExtra(e.target.value)} style={{
-              padding: '10px', border: `2px solid ${tema.accent1}`, borderRadius: '8px', fontSize: '14px', fontWeight: 'bold',
-              background: tema.backgroundCard, color: tema.textOnCard, cursor: 'pointer'
-            }}>
-              {tutteSquadre.filter(s => s.id !== squadraInfo.id).map(s => (
-                <option key={s.id} value={s.id}>{s.nome_squadra} ({s.categoria})</option>
-              ))}
-            </select>
-          </div>
+        {/* SEZIONE 2: GIOCATORI DI ALTRE SQUADRE DELLA STESSA ANNATA */}
+        {squadreCompatibili.length > 0 && (
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '18px', color: '#06b6d4', fontWeight: '900', margin: 0, flex: 1 }}>
+                🔄 Altra squadra della stessa annata
+              </h2>
+              <select value={squadraSelezionataExtra} onChange={(e) => setSquadraSelezionataExtra(e.target.value)} style={{
+                padding: '10px', border: '2px solid #06b6d4', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold',
+                background: tema.backgroundCard, color: tema.textOnCard, cursor: 'pointer'
+              }}>
+                {squadreCompatibili.map(s => (
+                  <option key={s.id} value={s.id}>{s.nome_squadra} ({s.categoria})</option>
+                ))}
+              </select>
+            </div>
 
-          {giocatoriSquadraExtra.length === 0 ? (
-            <div style={{ padding: '15px', background: 'rgba(251,191,36,0.15)', borderRadius: '10px', textAlign: 'center', color: tema.textOnCard, border: `1px solid ${tema.borderCard}` }}>
-              Nessun giocatore disponibile per {nomeSquadraExtra}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {giocatoriSquadraExtra.map(giocatore => {
-                const isTitolare = titolari.has(giocatore.id)
-                return (
-                  <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
-                    display: 'flex', alignItems: 'center', padding: '12px',
-                    background: isTitolare ? 'rgba(249,115,22,0.2)' : tema.backgroundCard,
-                    border: isTitolare ? `2px solid ${tema.accent1}` : `2px solid ${tema.borderCard}`,
-                    borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%'
-                  }}>
-                    <div style={{
-                      width: '44px', height: '44px',
-                      background: isTitolare ? tema.accent1 : '#64748b',
-                      color: isTitolare ? tema.buttonPrimaryText : 'white',
-                      borderRadius: '50%', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: '18px', fontWeight: '900', marginRight: '12px', flexShrink: 0
-                    }}>{giocatore.numero_maglia}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: tema.textOnCard }}>{giocatore.nome_completo}</div>
-                      <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard, marginTop: '2px' }}>
-                        {getRuoloIcon(giocatore.ruolo)} {getRuoloLabel(giocatore.ruolo)} • {giocatore.nome_squadra}
+            {giocatoriSquadraExtra.length === 0 ? (
+              <div style={{ padding: '15px', background: 'rgba(6,182,212,0.1)', borderRadius: '10px', textAlign: 'center', color: tema.textOnCard, border: '1px solid rgba(6,182,212,0.3)' }}>
+                Nessun giocatore disponibile per {nomeSquadraExtra}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {giocatoriSquadraExtra.map(giocatore => {
+                  const isTitolare = titolari.has(giocatore.id)
+                  return (
+                    <button key={giocatore.id} onClick={() => toggleTitolare(giocatore.id)} style={{
+                      display: 'flex', alignItems: 'center', padding: '12px',
+                      background: isTitolare ? 'rgba(6,182,212,0.2)' : tema.backgroundCard,
+                      border: isTitolare ? '2px solid #06b6d4' : `2px solid ${tema.borderCard}`,
+                      borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%'
+                    }}>
+                      <div style={{
+                        width: '44px', height: '44px',
+                        background: isTitolare ? '#06b6d4' : '#64748b',
+                        color: 'white',
+                        borderRadius: '50%', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', fontSize: '18px', fontWeight: '900', marginRight: '12px', flexShrink: 0
+                      }}>{giocatore.numero_maglia}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: tema.textOnCard }}>{giocatore.nome_completo}</div>
+                        <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard, marginTop: '2px' }}>
+                          {getRuoloIcon(giocatore.ruolo)} {getRuoloLabel(giocatore.ruolo)} • {giocatore.nome_squadra}
+                        </div>
                       </div>
-                    </div>
-                    <div style={{
-                      width: '28px', height: '28px', borderRadius: '50%',
-                      background: isTitolare ? tema.accent1 : 'transparent',
-                      border: `3px solid ${isTitolare ? tema.accent1 : tema.borderCard}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: tema.buttonPrimaryText, fontSize: '16px', fontWeight: 'bold'
-                    }}>{isTitolare ? '✓' : ''}</div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                      <div style={{
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        background: isTitolare ? '#06b6d4' : 'transparent',
+                        border: `3px solid ${isTitolare ? '#06b6d4' : tema.borderCard}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', fontSize: '16px', fontWeight: 'bold'
+                      }}>{isTitolare ? '✓' : ''}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <button 
           onClick={salvaFormazione} 
