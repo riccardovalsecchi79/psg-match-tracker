@@ -37,10 +37,61 @@ export default function Home() {
     router.push('/dashboard')
   }
 
-  const getTemaSquadra = (nome: string) => {
-    if (nome.trim().endsWith('A')) return 'A'
-    if (nome.trim().endsWith('B')) return 'B'
-    return 'home'
+  // ============================================
+  // LOGICA SIMBOLO E COLORE PER SQUADRA
+  // ============================================
+  const getConfigSquadra = (nome: string) => {
+    const nomeTrim = nome.trim()
+    
+    // Squadre Miste → simbolo C, colore azzurro
+    if (nomeTrim.includes('Mista') || nomeTrim.includes('Mista')) {
+      return { 
+        simbolo: 'C', 
+        colore: '#06b6d4',        // Azzurro cyan
+        coloreChiaro: 'rgba(6,182,212,0.15)',
+        coloreBordo: 'rgba(6,182,212,0.3)',
+        glowColor: 'rgba(6,182,212,0.3)',
+        gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+        shadow: '0 4px 15px rgba(6,182,212,0.5)'
+      }
+    }
+    
+    // Squadre A → simbolo A, colore arancio
+    if (nomeTrim.endsWith('A')) {
+      return { 
+        simbolo: 'A', 
+        colore: '#f97316',
+        coloreChiaro: 'rgba(249,115,22,0.15)',
+        coloreBordo: 'rgba(249,115,22,0.3)',
+        glowColor: 'rgba(249,115,22,0.3)',
+        gradient: 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+        shadow: '0 4px 15px rgba(249,115,22,0.5)'
+      }
+    }
+    
+    // Squadre B → simbolo B, colore blu
+    if (nomeTrim.endsWith('B')) {
+      return { 
+        simbolo: 'B', 
+        colore: '#3b82f6',
+        coloreChiaro: 'rgba(59,130,246,0.15)',
+        coloreBordo: 'rgba(59,130,246,0.3)',
+        glowColor: 'rgba(59,130,246,0.3)',
+        gradient: 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+        shadow: '0 4px 15px rgba(59,130,246,0.5)'
+      }
+    }
+    
+    // Default
+    return { 
+      simbolo: nomeTrim.split(' ').pop() || '?', 
+      colore: '#64748b',
+      coloreChiaro: 'rgba(100,116,139,0.15)',
+      coloreBordo: 'rgba(100,116,139,0.3)',
+      glowColor: 'rgba(100,116,139,0.3)',
+      gradient: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+      shadow: '0 4px 15px rgba(100,116,139,0.5)'
+    }
   }
 
   return (
@@ -67,7 +118,7 @@ export default function Home() {
         left: '-20%',
         width: '500px',
         height: '500px',
-        background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%)',
         pointerEvents: 'none',
         zIndex: 0
       }} />
@@ -113,7 +164,7 @@ export default function Home() {
             marginTop: '15px',
             height: '3px',
             width: '80px',
-            background: 'linear-gradient(90deg, #f97316, #3b82f6)',
+            background: 'linear-gradient(90deg, #f97316, #06b6d4)',
             margin: '15px auto 0',
             borderRadius: '2px'
           }} />
@@ -154,10 +205,7 @@ export default function Home() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {squadre.map(squadra => {
-              const temaSquadra = getTemaSquadra(squadra.nome_squadra)
-              const isA = temaSquadra === 'A'
-              const borderColor = isA ? '#f97316' : '#3b82f6'
-              const glowColor = isA ? 'rgba(249,115,22,0.3)' : 'rgba(59,130,246,0.3)'
+              const config = getConfigSquadra(squadra.nome_squadra)
               
               return (
                 <button
@@ -168,33 +216,31 @@ export default function Home() {
                     alignItems: 'center',
                     padding: '20px',
                     background: '#141414',
-                    border: `2px solid ${borderColor}`,
+                    border: `2px solid ${config.colore}`,
                     borderRadius: '16px',
                     cursor: 'pointer',
                     textAlign: 'left',
                     width: '100%',
                     transition: 'all 0.3s ease',
-                    boxShadow: `0 4px 20px ${glowColor}`,
+                    boxShadow: `0 4px 20px ${config.glowColor}`,
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-3px)'
-                    e.currentTarget.style.boxShadow = `0 8px 30px ${glowColor}`
+                    e.currentTarget.style.boxShadow = `0 8px 30px ${config.glowColor}`
                     e.currentTarget.style.background = '#1a1a1a'
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)'
-                    e.currentTarget.style.boxShadow = `0 4px 20px ${glowColor}`
+                    e.currentTarget.style.boxShadow = `0 4px 20px ${config.glowColor}`
                     e.currentTarget.style.background = '#141414'
                   }}
                 >
                   <div style={{
                     width: '64px',
                     height: '64px',
-                    background: isA 
-                      ? 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)' 
-                      : 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+                    background: config.gradient,
                     borderRadius: '16px',
                     display: 'flex',
                     alignItems: 'center',
@@ -204,11 +250,9 @@ export default function Home() {
                     fontWeight: '900',
                     marginRight: '20px',
                     flexShrink: 0,
-                    boxShadow: isA 
-                      ? '0 4px 15px rgba(249,115,22,0.5)' 
-                      : '0 4px 15px rgba(59,130,246,0.5)'
+                    boxShadow: config.shadow
                   }}>
-                    {squadra.nome_squadra.split(' ').pop()}
+                    {config.simbolo}
                   </div>
                   
                   <div style={{ flex: 1 }}>
@@ -224,12 +268,12 @@ export default function Home() {
                     <div style={{
                       display: 'inline-block',
                       padding: '4px 12px',
-                      background: isA ? 'rgba(249,115,22,0.15)' : 'rgba(59,130,246,0.15)',
-                      color: isA ? '#f97316' : '#60a5fa',
+                      background: config.coloreChiaro,
+                      color: config.colore,
                       borderRadius: '20px',
                       fontSize: '12px',
                       fontWeight: 'bold',
-                      border: `1px solid ${isA ? 'rgba(249,115,22,0.3)' : 'rgba(59,130,246,0.3)'}`
+                      border: `1px solid ${config.coloreBordo}`
                     }}>
                       {squadra.categoria}
                     </div>
@@ -237,7 +281,7 @@ export default function Home() {
 
                   <div style={{ 
                     fontSize: '28px', 
-                    color: borderColor,
+                    color: config.colore,
                     marginLeft: '10px',
                     fontWeight: 'bold'
                   }}>
