@@ -65,31 +65,54 @@ export default function GaraPage() {
   }, [id])
 
   const caricaDatiTempo = async (tempo: number) => {
+    console.log('Caricamento dati per tempo:', tempo)
     try {
-      const { data: formazioni } = await supabase
+      // Carica formazione del tempo
+      const { data: formazioni, error: formError } = await supabase
         .from('formazioni')
         .select('giocatore_id')
         .eq('gara_id', id)
         .eq('numero_tempo', tempo)
         .eq('titolare', true)
+      
+      if (formError) {
+        console.error('Errore formazioni:', formError)
+      }
+      
       if (formazioni) {
         setTitolariIds(new Set(formazioni.map(f => f.giocatore_id)))
+        console.log('Titolari caricati:', formazioni.length)
       } else {
         setTitolariIds(new Set())
       }
 
-      const { data: tempi } = await supabase
+      // Carica tempo gara
+      const { data: tempoData, error: tempoError } = await supabase
         .from('tempi_gara')
         .select('*')
         .eq('gara_id', id)
         .eq('numero_tempo', tempo)
         .single()
       
-      if (tempi) {
-        const { data: azioni } = await supabase
+      if (tempoError) {
+        console.log('Tempo non esiste ancora, resetto i dati')
+        setPlayerStats({})
+        setPlayerMinutes({})
+        setSostituzioni([])
+        return
+      }
+      
+      if (tempoData) {
+        // Carica azioni gioco
+        const { data: azioni, error: azioniError } = await supabase
           .from('azioni_gioco')
           .select('*')
-          .eq('tempo_id', tempi.id)
+          .eq('tempo_id', tempoData.id)
+        
+        if (azioniError) {
+          console.error('Errore azioni:', azioniError)
+        }
+        
         if (azioni) {
           const stats: Record<string, {goals: number, assists: number, shots: number, shotsAgainst: number, goalsAgainst: number}> = {}
           azioni.forEach(a => {
@@ -102,15 +125,18 @@ export default function GaraPage() {
             }
           })
           setPlayerStats(stats)
+          console.log('Statistiche caricate:', Object.keys(stats).length)
         } else {
           setPlayerStats({})
         }
         
-        const { data: minutiData } = await supabase
+        // Carica minuti giocati
+        const { data: minutiData, error: minutiError } = await supabase
           .from('minuti_giocati')
           .select('*')
           .eq('gara_id', id)
           .eq('numero_tempo', tempo)
+        
         if (minutiData) {
           const minutes: Record<string, number> = {}
           minutiData.forEach(m => { minutes[m.giocatore_id] = m.minuti || 0 })
@@ -119,21 +145,20 @@ export default function GaraPage() {
           setPlayerMinutes({})
         }
         
-        const { data: subsData } = await supabase
+        // Carica sostituzioni
+        const { data: subsData, error: subsError } = await supabase
           .from('sostituzioni')
           .select('*')
           .eq('gara_id', id)
           .eq('numero_tempo', tempo)
           .order('minuto_sostituzione')
+        
         if (subsData) {
           setSostituzioni(subsData)
+          console.log('Sostituzioni caricate:', subsData.length)
         } else {
           setSostituzioni([])
         }
-      } else {
-        setPlayerStats({})
-        setPlayerMinutes({})
-        setSostituzioni([])
       }
     } catch (error) {
       console.error('Errore caricamento tempo:', error)
@@ -141,11 +166,11 @@ export default function GaraPage() {
   }
 
   const cambiaTempo = async (tempo: number) => {
+    console.log('Cambio tempo:', tempo)
     setCurrentPeriod(tempo)
     await caricaDatiTempo(tempo)
   }
 
-  // Calcola tabellino automatico
   const calcolaTabellino = () => {
     let golPSG = 0
     let tiriPSG = 0
@@ -171,7 +196,6 @@ export default function GaraPage() {
     setSaving(true)
     setSaved(false)
     try {
-      // Aggiorna risultato gara con tabellino automatico
       await supabase.from('gare')
         .update({ 
           risultato_casa: tabellino.golPSG, 
@@ -374,7 +398,8 @@ export default function GaraPage() {
   const giocatoriDiMovimento = titolari.filter(p => p.ruolo !== 'P')
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '100px' }}>
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '120px' }}>
+      {/* HEADER FISSO */}
       <div style={{
         position: 'sticky', top: 0, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
         color: 'white', padding: '15px', zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
@@ -433,7 +458,7 @@ export default function GaraPage() {
         <button onClick={saveToDatabase} disabled={saving} style={{
           width: '100%', padding: '20px', background: saved ? '#22c55e' : saving ? '#94a3b8' : '#1e3a8a',
           color: 'white', border: 'none', borderRadius: '12px', fontSize: '20px', fontWeight: 'bold',
-          cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '10px',
+          cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '20px',
           boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
         }}>
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
@@ -456,7 +481,7 @@ export default function GaraPage() {
           </button>
         </div>
 
-        {/* PORTIERI - con tiri subiti e gol subiti */}
+        {/* PORTIERI */}
         {portieri.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
             <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
@@ -498,7 +523,6 @@ export default function GaraPage() {
                       </div>
                     </div>
 
-                    {/* TIRI SUBITI E GOL SUBITI (solo per portiere) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                       <div style={{ background: '#fee2e2', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
                         <div style={{ fontSize: '11px', color: '#dc2626', marginBottom: '4px', fontWeight: 'bold' }}>🎯 TIRI SUBITI</div>
@@ -530,10 +554,9 @@ export default function GaraPage() {
                       </div>
                     </div>
 
-                    {/* RETI E ASSIST (anche portiere può segnare) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}> RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a', lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
@@ -573,7 +596,7 @@ export default function GaraPage() {
           <div style={{ marginBottom: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
               <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
-                 GIOCATORI {currentPeriod}° TEMPO ({giocatoriDiMovimento.length})
+                ⚽ GIOCATORI {currentPeriod}° TEMPO ({giocatoriDiMovimento.length})
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Link href={`/formazione/${id}`} style={{
@@ -639,7 +662,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>🅰️ ASSIST</div>
+                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>️ ASSIST</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2563eb', lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
@@ -720,7 +743,7 @@ export default function GaraPage() {
                     <button onClick={() => rimuoviSostituzione(index)} style={{
                       padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none',
                       borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold'
-                    }}>🗑️</button>
+                    }}>️</button>
                   </div>
                 )
               })}
@@ -808,7 +831,7 @@ export default function GaraPage() {
             <p style={{ color: '#dc2626', fontWeight: 'bold', marginBottom: '20px' }}>Questa azione NON può essere annullata.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>Annulla</button>
-              <button onClick={eliminaPartita} disabled={deleting} style={{ flex: 2, padding: '14px', background: deleting ? '#94a3b8' : '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? ' ELIMINAZIONE...' : '️ ELIMINA DEFINITIVAMENTE'}</button>
+              <button onClick={eliminaPartita} disabled={deleting} style={{ flex: 2, padding: '14px', background: deleting ? '#94a3b8' : '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? '⏳ ELIMINAZIONE...' : '🗑️ ELIMINA DEFINITIVAMENTE'}</button>
             </div>
           </div>
         </div>
