@@ -85,7 +85,6 @@ export default function FormazionePage() {
           setTuttiGiocatori(giocatoriConSquadra as Giocatore[])
         }
 
-        // Carica titolari del tempo selezionato
         await caricaTitolari(1)
       } catch (error) {
         console.error('Errore generale:', error)
@@ -95,6 +94,7 @@ export default function FormazionePage() {
   }, [id, router])
 
   const caricaTitolari = async (tempo: number) => {
+    console.log('Caricamento titolari per tempo:', tempo)
     try {
       const { data: formazioni, error } = await supabase
         .from('formazioni')
@@ -110,6 +110,7 @@ export default function FormazionePage() {
       
       if (formazioni) {
         setTitolari(new Set(formazioni.map(f => f.giocatore_id)))
+        console.log('Titolari caricati:', formazioni.length)
       } else {
         setTitolari(new Set())
       }
@@ -119,6 +120,7 @@ export default function FormazionePage() {
   }
 
   const cambiaTempo = async (tempo: number) => {
+    console.log('Cambio tempo formazione:', tempo)
     setTempoSelezionato(tempo)
     setSaved(false)
     setErrorMessage('')
@@ -198,6 +200,7 @@ export default function FormazionePage() {
         if (insertError) throw new Error('Errore inserimento: ' + insertError.message)
       }
 
+      console.log('Formazione salvata con successo!')
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (error) {
@@ -222,7 +225,7 @@ export default function FormazionePage() {
   const nomeSquadraExtra = tutteSquadre.find(s => s.id === squadraSelezionataExtra)?.nome_squadra || ''
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '20px', paddingBottom: '100px' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '20px', paddingBottom: '120px' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
@@ -293,7 +296,7 @@ export default function FormazionePage() {
             borderRadius: '10px', marginBottom: '20px', textAlign: 'center',
             color: '#dc2626', fontWeight: 'bold'
           }}>
-             {errorMessage}
+            ️ {errorMessage}
           </div>
         )}
 
@@ -309,14 +312,14 @@ export default function FormazionePage() {
             {titolari.size}
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '5px' }}>
-            {titolari.size >= 7 ? '✅ Formazione completa' : '⚠️ Servono almeno 7 titolari'}
+            {titolari.size >= 7 ? '✅ Formazione completa' : '️ Servono almeno 7 titolari'}
           </div>
         </div>
 
         {/* SEZIONE 1: GIOCATORI DELLA SQUADRA PRINCIPALE */}
         <div style={{ marginBottom: '25px' }}>
           <h2 style={{ fontSize: '18px', color: '#1e3a8a', fontWeight: 'bold', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #1e3a8a' }}>
-             {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
+            ⚽ {squadraInfo.nome} ({giocatoriSquadraPrincipale.length})
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {giocatoriSquadraPrincipale.map(giocatore => {
