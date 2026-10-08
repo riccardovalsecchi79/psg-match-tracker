@@ -21,7 +21,7 @@ export default function GaraPage() {
   const [sostituzioni, setSostituzioni] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '', luogo: '' })
+  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '', luogo: '', squadraId: '' })
   
   const [showSubModal, setShowSubModal] = useState(false)
   const [subUscente, setSubUscente] = useState('')
@@ -47,7 +47,8 @@ export default function GaraPage() {
         setMatchInfo({ 
           avversario: match.avversario || '', 
           data: match.data_gara || '',
-          luogo: match.luogo || ''
+          luogo: match.luogo || '',
+          squadraId: match.squadra_id
         })
         setEditForm({
           avversario: match.avversario || '',
@@ -55,12 +56,19 @@ export default function GaraPage() {
           data_gara: match.data_gara || ''
         })
         
+        // CARICA TUTTI I GIOCATORI DI TUTTE LE SQUADRE
         const { data: playersData } = await supabase
           .from('giocatori')
-          .select('*')
-          .eq('squadra_id', match.squadra_id)
+          .select('*, squadre(nome_squadra)')
           .order('numero_maglia')
-        if (playersData) setPlayers(playersData)
+        
+        if (playersData) {
+          const playersWithTeam = playersData.map(p => ({
+            ...p,
+            nome_squadra_provenienza: (p as any).squadre?.nome_squadra || ''
+          }))
+          setPlayers(playersWithTeam)
+        }
         
         await caricaDatiTempo(1)
       }
@@ -177,14 +185,10 @@ export default function GaraPage() {
 
   const tabellino = calcolaTabellino()
 
-  // ============================================
-  // SALVATAGGIO CON UPSERT (non DELETE+INSERT)
-  // ============================================
   const saveToDatabase = async () => {
     setSaving(true)
     setSaved(false)
     try {
-      // 1. Aggiorna risultato gara
       await supabase.from('gare')
         .update({ 
           risultato_casa: tabellino.golPSG, 
@@ -192,7 +196,6 @@ export default function GaraPage() {
         })
         .eq('id', id)
       
-      // 2. Ottieni o crea tempo gara
       const { data: tempoEsistente } = await supabase
         .from('tempi_gara')
         .select('id')
@@ -222,7 +225,6 @@ export default function GaraPage() {
           .eq('id', tempoId)
       }
       
-      // 3. AZIONI GIOCO: UPSERT (INSERT con ON CONFLICT)
       for (const [playerId, stats] of Object.entries(playerStats)) {
         if (stats.goals > 0 || stats.assists > 0 || stats.shots > 0 || stats.shotsAgainst > 0 || stats.goalsAgainst > 0) {
           const { error } = await supabase
@@ -245,7 +247,6 @@ export default function GaraPage() {
         }
       }
       
-      // 4. MINUTI GIOCATI: UPSERT
       for (const [playerId, minuti] of Object.entries(playerMinutes)) {
         const { error } = await supabase
           .from('minuti_giocati')
@@ -262,7 +263,6 @@ export default function GaraPage() {
         if (error) console.error('Errore upsert minuti:', error)
       }
       
-      // 5. SOSTITUZIONI: DELETE + INSERT (perché non hanno vincolo unique semplice)
       await supabase.from('sostituzioni')
         .delete()
         .eq('gara_id', id)
@@ -348,7 +348,8 @@ export default function GaraPage() {
       setMatchInfo({
         avversario: editForm.avversario.trim(),
         data: editForm.data_gara,
-        luogo: editForm.luogo.trim()
+        luogo: editForm.luogo.trim(),
+        squadraId: matchInfo.squadraId
       })
       setShowEditModal(false)
       alert('✅ Partita aggiornata!')
@@ -384,11 +385,11 @@ export default function GaraPage() {
     }
   }
 
+  // Filtra giocatori: titolari della squadra della partita + titolari di altre squadre
   const titolari = players.filter(p => titolariIds.has(p.id))
   const panchina = players.filter(p => !titolariIds.has(p.id))
   const portieri = titolari.filter(p => p.ruolo === 'P')
   const giocatoriDiMovimento = titolari.filter(p => p.ruolo !== 'P')
-  const isTemaA = tema.nomeTema === 'team'
 
   return (
     <div style={{ minHeight: '100vh', background: tema.background, paddingBottom: '120px' }}>
@@ -470,14 +471,14 @@ export default function GaraPage() {
             border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            ️ ELIMINA
+            🗑️ ELIMINA
           </button>
         </div>
 
         <div style={{ marginBottom: '30px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', margin: 0 }}>
-               TITOLARI {currentPeriod}° ({titolari.length})
+              ⚽ TITOLARI {currentPeriod}° ({titolari.length})
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <Link href={`/formazione/${id}`} style={{
@@ -487,7 +488,7 @@ export default function GaraPage() {
               <button onClick={() => setShowSubModal(true)} style={{
                 padding: '10px 15px', background: tema.accent1, color: tema.buttonPrimaryText, border: 'none',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
-              }}>🔄 Sostituzione</button>
+              }}> Sostituzione</button>
             </div>
           </div>
 
@@ -524,25 +525,29 @@ export default function GaraPage() {
               {portieri.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
+                const isExternal = player.squadra_id !== matchInfo.squadraId
                 return (
                   <div key={player.id} style={{
                     background: tema.backgroundCard, borderRadius: '12px', padding: '15px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${tema.borderCard}`
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${isExternal ? '#06b6d4' : tema.borderCard}`
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
-                        width: '48px', height: '48px', background: tema.gradientHeader,
+                        width: '48px', height: '48px', background: isExternal ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : tema.gradientHeader,
                         color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center',
                         justifyContent: 'center', fontSize: '20px', fontWeight: '900', flexShrink: 0
                       }}>{player.numero_maglia}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '18px', fontWeight: '900', color: tema.textOnCard }}>{player.nome_completo}</div>
-                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>
+                          {getRuoloIcon(player.ruolo)} {player.ruolo}
+                          {isExternal && <span style={{ color: '#06b6d4', marginLeft: '8px', fontSize: '12px' }}>• {player.nome_squadra_provenienza}</span>}
+                        </div>
                       </div>
                     </div>
 
                     <div style={{ background: 'rgba(251,191,36,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
-                      <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>️ MINUTI</div>
+                      <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>⏱️ MINUTI</div>
                       <div style={{ fontSize: '32px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
@@ -624,20 +629,24 @@ export default function GaraPage() {
               {giocatoriDiMovimento.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
+                const isExternal = player.squadra_id !== matchInfo.squadraId
                 return (
                   <div key={player.id} style={{
                     background: tema.backgroundCard, borderRadius: '12px', padding: '15px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${tema.borderCard}`
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${isExternal ? '#06b6d4' : tema.borderCard}`
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
-                        width: '48px', height: '48px', background: tema.gradientHeader,
+                        width: '48px', height: '48px', background: isExternal ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : tema.gradientHeader,
                         color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center',
                         justifyContent: 'center', fontSize: '20px', fontWeight: '900', flexShrink: 0
                       }}>{player.numero_maglia}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '18px', fontWeight: '900', color: tema.textOnCard }}>{player.nome_completo}</div>
-                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>
+                          {getRuoloIcon(player.ruolo)} {player.ruolo}
+                          {isExternal && <span style={{ color: '#06b6d4', marginLeft: '8px', fontSize: '12px' }}>• {player.nome_squadra_provenienza}</span>}
+                        </div>
                       </div>
                     </div>
 
@@ -658,7 +667,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                       <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> RETI</div>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
@@ -686,7 +695,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: 'rgba(219,39,119,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI</div>
+                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> TIRI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shots}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shots', -1)} style={{
@@ -711,22 +720,28 @@ export default function GaraPage() {
           <div style={{ marginBottom: '30px' }}>
             <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', marginBottom: '15px' }}>🪑 PANCHINA ({panchina.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {panchina.map(player => (
-                <div key={player.id} style={{
-                  background: tema.backgroundCard, borderRadius: '10px', padding: '12px',
-                  border: `1px solid ${tema.borderCard}`, display: 'flex', alignItems: 'center', gap: '12px'
-                }}>
-                  <div style={{
-                    width: '40px', height: '40px', background: '#64748b', color: 'white',
-                    borderRadius: '50%', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontSize: '18px', fontWeight: 'bold'
-                  }}>{player.numero_maglia}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: tema.textOnCard }}>{player.nome_completo}</div>
-                    <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+              {panchina.map(player => {
+                const isExternal = player.squadra_id !== matchInfo.squadraId
+                return (
+                  <div key={player.id} style={{
+                    background: tema.backgroundCard, borderRadius: '10px', padding: '12px',
+                    border: `1px solid ${isExternal ? '#06b6d4' : tema.borderCard}`, display: 'flex', alignItems: 'center', gap: '12px'
+                  }}>
+                    <div style={{
+                      width: '40px', height: '40px', background: isExternal ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : '#64748b', color: 'white',
+                      borderRadius: '50%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '18px', fontWeight: 'bold'
+                    }}>{player.numero_maglia}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: tema.textOnCard }}>{player.nome_completo}</div>
+                      <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard }}>
+                        {getRuoloIcon(player.ruolo)} {player.ruolo}
+                        {isExternal && <span style={{ color: '#06b6d4', marginLeft: '8px' }}>• {player.nome_squadra_provenienza}</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -772,14 +787,14 @@ export default function GaraPage() {
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Giocatore che ESCE ❌</label>
               <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', background: tema.background, color: tema.textOnCard }}>
                 <option value="">-- Seleziona --</option>
-                {titolari.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
+                {titolari.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}{p.squadra_id !== matchInfo.squadraId ? ` (${p.nome_squadra_provenienza})` : ''}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Giocatore che ENTRA ✅</label>
               <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', background: tema.background, color: tema.textOnCard }}>
                 <option value="">-- Seleziona --</option>
-                {panchina.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
+                {panchina.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}{p.squadra_id !== matchInfo.squadraId ? ` (${p.nome_squadra_provenienza})` : ''}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
