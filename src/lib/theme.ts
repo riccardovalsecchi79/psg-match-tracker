@@ -1,7 +1,4 @@
-// Sistema di temi per P.S.G. Molteno Brongio
-// Squadre A: Nero + Arancio + Giallo (stile night mode)
-// Squadre B: Blu + Arancio + Bianco + Nero (stile classico)
-// Home: Nero + Arancio + Blu (stile professionale)
+import { useState, useEffect } from 'react'
 
 export type TemaTipo = 'A' | 'B' | 'home'
 
@@ -9,11 +6,13 @@ export interface Tema {
   background: string
   backgroundCard: string
   backgroundHeader: string
-  textPrimary: string
-  textSecondary: string
-  accent1: string        // Arancio
-  accent2: string        // Giallo (A) o Nero (B) o Blu (home)
-  accent3: string        // Giallo chiaro (A) o Bianco (B) o Arancio (home)
+  textPrimary: string          // Testo su sfondo scuro
+  textOnCard: string           // Testo su card (chiaro per B, scuro per A)
+  textSecondary: string        // Testo secondario su sfondo scuro
+  textSecondaryOnCard: string  // Testo secondario su card
+  accent1: string              // Arancio
+  accent2: string              // Giallo (A) / Nero (B) / Blu (home)
+  accent3: string              // Giallo chiaro (A) / Bianco (B) / Arancio (home)
   borderCard: string
   buttonPrimary: string
   buttonPrimaryText: string
@@ -28,39 +27,37 @@ export interface Tema {
   nomeTema: string
 }
 
-// Rileva il tema in base al nome della squadra
 export function getTema(): Tema {
   if (typeof window === 'undefined') return TEMI.home
   
   const nomeSquadra = localStorage.getItem('squadra_selezionata_nome') || ''
   
-  // Squadre A: nome finisce con "A" (es. "2014 A", "2015 A")
   if (nomeSquadra.trim().endsWith('A')) {
     return TEMI.A
   }
   
-  // Squadre B: nome finisce con "B"
   if (nomeSquadra.trim().endsWith('B')) {
     return TEMI.B
   }
   
-  // Default: tema home
   return TEMI.home
 }
 
-// Tema A: Nero + Arancio + Giallo (stile night mode sportivo)
+// TEMA A: Nero + Arancio + Giallo (card scure, testo bianco)
 const temaA: Tema = {
   background: '#0a0a0a',
   backgroundCard: '#1a1a1a',
   backgroundHeader: '#000000',
   textPrimary: '#ffffff',
+  textOnCard: '#ffffff',
   textSecondary: '#a0a0a0',
-  accent1: '#f97316',        // Arancio
-  accent2: '#fbbf24',        // Giallo
-  accent3: '#fef3c7',        // Giallo chiaro
-  borderCard: '#f97316',
+  textSecondaryOnCard: '#a0a0a0',
+  accent1: '#f97316',
+  accent2: '#fbbf24',
+  accent3: '#fef3c7',
+  borderCard: 'rgba(249, 115, 22, 0.3)',
   buttonPrimary: '#f97316',
-  buttonPrimaryText: '#ffffff',
+  buttonPrimaryText: '#000000',
   buttonSecondary: '#fbbf24',
   buttonSecondaryText: '#000000',
   success: '#22c55e',
@@ -72,17 +69,19 @@ const temaA: Tema = {
   nomeTema: 'A'
 }
 
-// Tema B: Blu + Arancio + Bianco + Nero (stile classico)
+// TEMA B: Blu + Arancio + Bianco + Nero (card bianche, testo nero)
 const temaB: Tema = {
   background: '#1e3a8a',
   backgroundCard: '#ffffff',
   backgroundHeader: '#1e40af',
   textPrimary: '#ffffff',
+  textOnCard: '#0f172a',           // NERO su card bianca
   textSecondary: '#bfdbfe',
-  accent1: '#f97316',        // Arancio
-  accent2: '#000000',        // Nero
-  accent3: '#ffffff',        // Bianco
-  borderCard: '#3b82f6',
+  textSecondaryOnCard: '#64748b',  // GRIGIO su card bianca
+  accent1: '#f97316',
+  accent2: '#000000',
+  accent3: '#ffffff',
+  borderCard: 'rgba(255, 255, 255, 0.2)',
   buttonPrimary: '#f97316',
   buttonPrimaryText: '#ffffff',
   buttonSecondary: '#000000',
@@ -91,21 +90,23 @@ const temaB: Tema = {
   danger: '#ef4444',
   warning: '#fbbf24',
   info: '#60a5fa',
-  shadow: '0 4px 20px rgba(30, 58, 138, 0.4)',
+  shadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
   gradientHeader: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #f97316 100%)',
   nomeTema: 'B'
 }
 
-// Tema Home: Nero + Arancio + Blu (stile professionale)
+// TEMA HOME: Nero + Arancio + Blu
 const temaHome: Tema = {
   background: '#0a0a0a',
   backgroundCard: '#141414',
   backgroundHeader: '#000000',
   textPrimary: '#ffffff',
+  textOnCard: '#ffffff',
   textSecondary: '#a0a0a0',
-  accent1: '#f97316',        // Arancio
-  accent2: '#3b82f6',        // Blu
-  accent3: '#fbbf24',        // Giallo
+  textSecondaryOnCard: '#a0a0a0',
+  accent1: '#f97316',
+  accent2: '#3b82f6',
+  accent3: '#fbbf24',
   borderCard: '#262626',
   buttonPrimary: '#f97316',
   buttonPrimaryText: '#ffffff',
@@ -126,7 +127,6 @@ export const TEMI = {
   home: temaHome
 }
 
-// Hook React per usare il tema nei componenti
 export function useTema(): Tema {
   const [tema, setTema] = useState<Tema>(TEMI.home)
   
@@ -136,5 +136,3 @@ export function useTema(): Tema {
   
   return tema
 }
-
-import { useState, useEffect } from 'react'
