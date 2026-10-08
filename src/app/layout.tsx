@@ -1,51 +1,44 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"] });
+
 export const metadata: Metadata = {
-  title: "PSG Match Tracker",
-  description: "App statistiche partite P.S.G. Molteno Brongio",
+  title: "PSG Statino Partite",
+  description: "App gestione partite e statistiche P.S.G. Molteno Brongio",
   manifest: "/manifest.json",
-  themeColor: "#007AFF",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "PSG Tracker",
+    statusBarStyle: "black-translucent",
+    title: "PSG Statino",
   },
 };
 
 export const viewport: Viewport = {
+  themeColor: "#f97316",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#007AFF",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="it">
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="format-detection" content="telephone=no" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="PSG Statino" />
       </head>
-      <body
-        style={{
-          margin: 0,
-          padding: 0,
-          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif',
-          backgroundColor: '#F2F2F7',
-          color: '#000000',
-          WebkitFontSmoothing: 'antialiased',
-          MozOsxFontSmoothing: 'grayscale',
-        }}
-      >
-        {children}
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }
