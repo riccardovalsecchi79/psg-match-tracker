@@ -6,6 +6,12 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { getTema, TEMI } from '@/lib/theme'
 
+// Estrae l'anno dal nome squadra
+function estraiAnno(nomeSquadra: string): string {
+  const match = nomeSquadra.trim().match(/^(\d{4}(?:\/\d{2})?)/)
+  return match ? match[1] : ''
+}
+
 export default function GaraPage() {
   const params = useParams()
   const router = useRouter()
@@ -21,7 +27,7 @@ export default function GaraPage() {
   const [sostituzioni, setSostituzioni] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '', luogo: '', squadraId: '' })
+  const [matchInfo, setMatchInfo] = useState({ avversario: '', data: '', luogo: '', squadraId: '', squadraNome: '' })
   
   const [showSubModal, setShowSubModal] = useState(false)
   const [subUscente, setSubUscente] = useState('')
@@ -39,16 +45,18 @@ export default function GaraPage() {
     const loadData = async () => {
       const { data: match } = await supabase
         .from('gare')
-        .select('*')
+        .select('*, squadre(nome_squadra)')
         .eq('id', id)
         .single()
       
       if (match) {
+        const squadraNome = (match as any).squadre?.nome_squadra || ''
         setMatchInfo({ 
           avversario: match.avversario || '', 
           data: match.data_gara || '',
           luogo: match.luogo || '',
-          squadraId: match.squadra_id
+          squadraId: match.squadra_id,
+          squadraNome
         })
         setEditForm({
           avversario: match.avversario || '',
@@ -56,10 +64,23 @@ export default function GaraPage() {
           data_gara: match.data_gara || ''
         })
         
-        // CARICA TUTTI I GIOCATORI DI TUTTE LE SQUADRE
+        // CARICA SOLO GIOCATORI DELLA STESSA ANNATA
+        const annoCorrente = estraiAnno(squadraNome)
+        
+        // Prima ottieni tutte le squadre della stessa annata
+        const { data: squadreCompatibili } = await supabase
+          .from('squadre')
+          .select('id')
+        
+        const idSquadreCompatibili = (squadreCompatibili || [])
+          .filter(s => estraiAnno(s.nome_squadra) === annoCorrente)
+          .map(s => s.id)
+        
+        // Poi carica i giocatori di quelle squadre
         const { data: playersData } = await supabase
           .from('giocatori')
           .select('*, squadre(nome_squadra)')
+          .in('squadra_id', idSquadreCompatibili)
           .order('numero_maglia')
         
         if (playersData) {
@@ -349,7 +370,8 @@ export default function GaraPage() {
         avversario: editForm.avversario.trim(),
         data: editForm.data_gara,
         luogo: editForm.luogo.trim(),
-        squadraId: matchInfo.squadraId
+        squadraId: matchInfo.squadraId,
+        squadraNome: matchInfo.squadraNome
       })
       setShowEditModal(false)
       alert('✅ Partita aggiornata!')
@@ -360,7 +382,7 @@ export default function GaraPage() {
   }
 
   const eliminaPartita = async () => {
-    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
+    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
       return
     }
     setDeleting(true)
@@ -379,13 +401,12 @@ export default function GaraPage() {
     switch (ruolo) {
       case 'P': return '🧤'
       case 'D': return '🛡️'
-      case 'C': return '🎽'
-      case 'A': return '🎯'
+      case 'C': return ''
+      case 'A': return ''
       default: return ''
     }
   }
 
-  // Filtra giocatori: titolari della squadra della partita + titolari di altre squadre
   const titolari = players.filter(p => titolariIds.has(p.id))
   const panchina = players.filter(p => !titolariIds.has(p.id))
   const portieri = titolari.filter(p => p.ruolo === 'P')
@@ -471,24 +492,24 @@ export default function GaraPage() {
             border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            🗑️ ELIMINA
+            ️ ELIMINA
           </button>
         </div>
 
         <div style={{ marginBottom: '30px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
             <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', margin: 0 }}>
-              ⚽ TITOLARI {currentPeriod}° ({titolari.length})
+               TITOLARI {currentPeriod}° ({titolari.length})
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <Link href={`/formazione/${id}`} style={{
                 padding: '10px 15px', background: '#8b5cf6', color: 'white',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
-              }}>👥 Formazione</Link>
+              }}> Formazione</Link>
               <button onClick={() => setShowSubModal(true)} style={{
                 padding: '10px 15px', background: tema.accent1, color: tema.buttonPrimaryText, border: 'none',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
-              }}> Sostituzione</button>
+              }}>🔄 Sostituzione</button>
             </div>
           </div>
 
@@ -500,7 +521,7 @@ export default function GaraPage() {
               textAlign: 'center',
               border: `2px solid ${tema.accent1}`
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>️</div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: tema.textOnCard, marginBottom: '10px' }}>
                 Nessun titolare selezionato
               </div>
@@ -563,7 +584,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                       <div style={{ background: 'rgba(239,68,68,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI SUBITI</div>
+                        <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> TIRI SUBITI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shotsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shotsAgainst', -1)} style={{
@@ -577,7 +598,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: 'rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> GOL SUBITI</div>
+                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ GOL SUBITI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goalsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goalsAgainst', -1)} style={{
@@ -667,7 +688,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                       <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
