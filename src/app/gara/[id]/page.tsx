@@ -11,7 +11,7 @@ export default function GaraPage() {
   const router = useRouter()
   const id = params.id as string
   const supabase = createClient()
-  const [tema, setTema] = useState(TEMI.home)
+  const [tema, setTema] = useState(TEMI.team)
   
   const [players, setPlayers] = useState<any[]>([])
   const [titolariIds, setTitolariIds] = useState<Set<string>>(new Set())
@@ -177,10 +177,14 @@ export default function GaraPage() {
 
   const tabellino = calcolaTabellino()
 
+  // ============================================
+  // SALVATAGGIO CON UPSERT (non DELETE+INSERT)
+  // ============================================
   const saveToDatabase = async () => {
     setSaving(true)
     setSaved(false)
     try {
+      // 1. Aggiorna risultato gara
       await supabase.from('gare')
         .update({ 
           risultato_casa: tabellino.golPSG, 
@@ -188,6 +192,7 @@ export default function GaraPage() {
         })
         .eq('id', id)
       
+      // 2. Ottieni o crea tempo gara
       const { data: tempoEsistente } = await supabase
         .from('tempi_gara')
         .select('id')
@@ -217,14 +222,12 @@ export default function GaraPage() {
           .eq('id', tempoId)
       }
       
-      await supabase.from('azioni_gioco')
-        .delete()
-        .eq('tempo_id', tempoId)
-      
+      // 3. AZIONI GIOCO: UPSERT (INSERT con ON CONFLICT)
       for (const [playerId, stats] of Object.entries(playerStats)) {
         if (stats.goals > 0 || stats.assists > 0 || stats.shots > 0 || stats.shotsAgainst > 0 || stats.goalsAgainst > 0) {
-          await supabase.from('azioni_gioco')
-            .insert({
+          const { error } = await supabase
+            .from('azioni_gioco')
+            .upsert({
               tempo_id: tempoId, 
               giocatore_id: playerId,
               numero_tempo: currentPeriod,
@@ -234,28 +237,32 @@ export default function GaraPage() {
               tiri: stats.shots,
               tiri_subiti: stats.shotsAgainst,
               reti_subite: stats.goalsAgainst
+            }, {
+              onConflict: 'tempo_id,giocatore_id'
             })
+          
+          if (error) console.error('Errore upsert azioni:', error)
         }
       }
       
-      await supabase.from('minuti_giocati')
-        .delete()
-        .eq('gara_id', id)
-        .eq('numero_tempo', currentPeriod)
-      
+      // 4. MINUTI GIOCATI: UPSERT
       for (const [playerId, minuti] of Object.entries(playerMinutes)) {
-        if (minuti > 0) {
-          await supabase.from('minuti_giocati')
-            .insert({ 
-              gara_id: id, 
-              tempo_id: tempoId, 
-              numero_tempo: currentPeriod,
-              giocatore_id: playerId, 
-              minuti 
-            })
-        }
+        const { error } = await supabase
+          .from('minuti_giocati')
+          .upsert({ 
+            gara_id: id, 
+            tempo_id: tempoId, 
+            numero_tempo: currentPeriod,
+            giocatore_id: playerId, 
+            minuti: minuti || 0
+          }, {
+            onConflict: 'gara_id,giocatore_id,numero_tempo'
+          })
+        
+        if (error) console.error('Errore upsert minuti:', error)
       }
       
+      // 5. SOSTITUZIONI: DELETE + INSERT (perché non hanno vincolo unique semplice)
       await supabase.from('sostituzioni')
         .delete()
         .eq('gara_id', id)
@@ -352,7 +359,7 @@ export default function GaraPage() {
   }
 
   const eliminaPartita = async () => {
-    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
+    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
       return
     }
     setDeleting(true)
@@ -371,8 +378,8 @@ export default function GaraPage() {
     switch (ruolo) {
       case 'P': return '🧤'
       case 'D': return '🛡️'
-      case 'C': return ''
-      case 'A': return ''
+      case 'C': return '🎽'
+      case 'A': return '🎯'
       default: return ''
     }
   }
@@ -381,15 +388,14 @@ export default function GaraPage() {
   const panchina = players.filter(p => !titolariIds.has(p.id))
   const portieri = titolari.filter(p => p.ruolo === 'P')
   const giocatoriDiMovimento = titolari.filter(p => p.ruolo !== 'P')
-  const isTemaA = tema.nomeTema === 'A'
-  const isTemaB = tema.nomeTema === 'B'
+  const isTemaA = tema.nomeTema === 'team'
 
   return (
     <div style={{ minHeight: '100vh', background: tema.background, paddingBottom: '120px' }}>
       <div style={{
         position: 'sticky', top: 0, background: tema.gradientHeader,
         color: 'white', padding: '15px', zIndex: 100, boxShadow: tema.shadow,
-        border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.2)'}`
+        border: '1px solid rgba(249,115,22,0.4)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
           <Link href="/dashboard" style={{
@@ -410,7 +416,7 @@ export default function GaraPage() {
           {[1, 2, 3, 4].map(p => (
             <button key={p} onClick={() => cambiaTempo(p)} style={{
               padding: '12px 8px', background: currentPeriod === p ? tema.accent1 : 'rgba(255,255,255,0.15)',
-              color: 'white', border: currentPeriod === p ? `2px solid ${tema.accent2}` : '2px solid transparent',
+              color: 'white', border: currentPeriod === p ? '2px solid #fbbf24' : '2px solid transparent',
               borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
             }}>{p}°</button>
           ))}
@@ -488,7 +494,7 @@ export default function GaraPage() {
           {titolari.length === 0 ? (
             <div style={{ 
               padding: '30px', 
-              background: isTemaA ? 'rgba(249,115,22,0.1)' : 'rgba(251,191,36,0.1)', 
+              background: 'rgba(249,115,22,0.1)', 
               borderRadius: '12px', 
               textAlign: 'center',
               border: `2px solid ${tema.accent1}`
@@ -535,16 +541,16 @@ export default function GaraPage() {
                       </div>
                     </div>
 
-                    <div style={{ background: isTemaA ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.2)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
-                      <div style={{ fontSize: '12px', color: tema.accent2, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>️ MINUTI</div>
+                    <div style={{ background: 'rgba(251,191,36,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>️ MINUTI</div>
                       <div style={{ fontSize: '32px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
                           width: '48px', height: '48px', fontSize: '20px', background: tema.background,
-                          color: tema.accent2, border: `2px solid ${tema.accent2}`, borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          color: '#fbbf24', border: '2px solid #fbbf24', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>−5</button>
                         <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: tema.accent2,
+                          width: '48px', height: '48px', fontSize: '20px', background: '#fbbf24',
                           color: '#000000', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>+5</button>
                       </div>
@@ -566,7 +572,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: 'rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ GOL SUBITI</div>
+                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> GOL SUBITI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goalsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goalsAgainst', -1)} style={{
@@ -635,16 +641,16 @@ export default function GaraPage() {
                       </div>
                     </div>
 
-                    <div style={{ background: isTemaA ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.2)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
-                      <div style={{ fontSize: '12px', color: tema.accent2, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>⏱️ MINUTI</div>
+                    <div style={{ background: 'rgba(251,191,36,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>⏱️ MINUTI</div>
                       <div style={{ fontSize: '32px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
                           width: '48px', height: '48px', fontSize: '20px', background: tema.background,
-                          color: tema.accent2, border: `2px solid ${tema.accent2}`, borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          color: '#fbbf24', border: '2px solid #fbbf24', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>−5</button>
                         <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: tema.accent2,
+                          width: '48px', height: '48px', fontSize: '20px', background: '#fbbf24',
                           color: '#000000', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>+5</button>
                       </div>
@@ -652,7 +658,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                       <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
@@ -734,7 +740,7 @@ export default function GaraPage() {
                 const entrante = players.find(p => p.id === sub.giocatore_entrante_id)
                 return (
                   <div key={index} style={{
-                    background: isTemaA ? 'rgba(249,115,22,0.1)' : 'rgba(249,115,22,0.15)', borderRadius: '10px', padding: '12px',
+                    background: 'rgba(249,115,22,0.1)', borderRadius: '10px', padding: '12px',
                     border: `1px solid ${tema.accent1}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                   }}>
                     <div style={{ flex: 1 }}>
