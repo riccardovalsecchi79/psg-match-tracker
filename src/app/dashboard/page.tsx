@@ -15,12 +15,20 @@ interface Gara {
   risultato_ospite: number
 }
 
+interface TempiGara {
+  id: string
+  numero_tempo: number
+  tiri_effettuati: number
+  tiri_subiti: number
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const supabase = createClient()
   
   const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
   const [gare, setGare] = useState<Gara[]>([])
+  const [tiriPerGara, setTiriPerGara] = useState<Record<string, { effettuati: number, subiti: number }>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,7 +45,30 @@ export default function Dashboard() {
         .select('*')
         .eq('squadra_id', squadraId)
         .order('data_gara', { ascending: false })
-      if (!error && data) setGare(data as Gara[])
+      
+      if (!error && data) {
+        setGare(data as Gara[])
+        
+        // Carica tiri totali per ogni gara
+        const tiriMap: Record<string, { effettuati: number, subiti: number }> = {}
+        for (const gara of data as Gara[]) {
+          const { data: tempi } = await supabase
+            .from('tempi_gara')
+            .select('tiri_effettuati, tiri_subiti')
+            .eq('gara_id', gara.id)
+          
+          let tiriEffettuati = 0
+          let tiriSubiti = 0
+          if (tempi) {
+            tempi.forEach(t => {
+              tiriEffettuati += t.tiri_effettuati || 0
+              tiriSubiti += t.tiri_subiti || 0
+            })
+          }
+          tiriMap[gara.id] = { effettuati: tiriEffettuati, subiti: tiriSubiti }
+        }
+        setTiriPerGara(tiriMap)
+      }
       setLoading(false)
     }
     loadGare()
@@ -80,7 +111,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* 3 PULSANTI PRINCIPALI */}
         <Link href="/giocatori" style={{
           display: 'block', width: '100%', padding: '15px', background: '#8b5cf6',
           color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '10px',
@@ -96,7 +126,7 @@ export default function Dashboard() {
           fontSize: '18px', fontWeight: 'bold', marginBottom: '10px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
-          📊 STATISTICHE
+           STATISTICHE
         </Link>
 
         <Link href="/nuova-gara" style={{
@@ -121,6 +151,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {gare.map(gara => {
               const badge = getStatoBadge(gara.stato)
+              const tiri = tiriPerGara[gara.id] || { effettuati: 0, subiti: 0 }
               return (
                 <div key={gara.id} style={{
                   background: 'white', borderRadius: '10px', padding: '20px',
@@ -134,17 +165,68 @@ export default function Dashboard() {
                     <div>📅 {formatData(gara.data_gara)}</div>
                     {gara.luogo && <div>📍 {gara.luogo}</div>}
                   </div>
-                  {(gara.stato === 'terminata' || gara.risultato_casa > 0 || gara.risultato_ospite > 0) && (
-                    <div style={{ padding: '10px', background: '#f1f5f9', borderRadius: '8px', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#1e293b', marginBottom: '10px' }}>
-                      {gara.risultato_casa} - {gara.risultato_ospite}
+                  
+                  {/* TABELLINO COMPLETO */}
+                  {(gara.stato === 'terminata' || gara.risultato_casa > 0 || gara.risultato_ospite > 0 || tiri.effettuati > 0 || tiri.subiti > 0) && (
+                    <div style={{ 
+                      padding: '15px', 
+                      background: '#f8fafc', 
+                      borderRadius: '10px', 
+                      marginBottom: '10px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {/* Risultato */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: '10px',
+                        paddingBottom: '10px',
+                        borderBottom: '2px solid #e2e8f0'
+                      }}>
+                        <div style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>PSG</div>
+                          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>
+                            {gara.risultato_casa}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '24px', color: '#94a3b8', fontWeight: 'bold' }}>-</div>
+                        <div style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>OSPITE</div>
+                          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>
+                            {gara.risultato_ospite}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Tiri */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        fontSize: '14px'
+                      }}>
+                        <div style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>TIRI</div>
+                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f97316' }}>
+                            {tiri.effettuati}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center', flex: 1 }}>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>TIRI SUBITI</div>
+                          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc2626' }}>
+                            {tiri.subiti}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
+                  
                   <Link href={`/gara/${gara.id}`} style={{
                     display: 'block', width: '100%', padding: '12px', background: '#3b82f6',
                     color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '8px',
                     fontSize: '16px', fontWeight: 'bold'
                   }}>
-                    ⚽ APRI PARTITA
+                     APRI PARTITA
                   </Link>
                 </div>
               )
