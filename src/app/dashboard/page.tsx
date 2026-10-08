@@ -133,10 +133,19 @@ export default function Dashboard() {
         <Link href="/nuova-gara" style={{
           display: 'block', width: '100%', padding: '15px', background: '#22c55e',
           color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '10px',
-          fontSize: '18px', fontWeight: 'bold', marginBottom: '20px',
+          fontSize: '18px', fontWeight: 'bold', marginBottom: '10px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
           + CREA NUOVA PARTITA
+        </Link>
+
+        <Link href="/istruzioni" style={{
+          display: 'block', width: '100%', padding: '15px', background: '#64748b',
+          color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '10px',
+          fontSize: '18px', fontWeight: 'bold', marginBottom: '20px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          📖 ISTRUZIONI PER I MISTER
         </Link>
 
         <h2 style={{ fontSize: '20px', color: '#1e293b', marginBottom: '15px' }}>Partite ({gare.length})</h2>
