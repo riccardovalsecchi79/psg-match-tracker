@@ -19,7 +19,7 @@ interface Gara {
 export default function Dashboard() {
   const router = useRouter()
   const supabase = createClient()
-  const [tema, setTema] = useState(TEMI.home)
+  const [tema, setTema] = useState(TEMI.team)
   
   const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
   const [gare, setGare] = useState<Gara[]>([])
@@ -95,9 +95,6 @@ export default function Dashboard() {
     return new Date(dataStr).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
   }
 
-  const isTemaA = tema.nomeTema === 'A'
-  const isTemaB = tema.nomeTema === 'B'
-
   return (
     <div style={{ minHeight: '100vh', background: tema.background, padding: '20px' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -111,7 +108,7 @@ export default function Dashboard() {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.2)'}`,
+          border: '1px solid rgba(249,115,22,0.4)',
           boxShadow: tema.shadow
         }}>
           <div>
@@ -143,23 +140,23 @@ export default function Dashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px' }}>
           <Link href="/giocatori" style={{
             display: 'block', width: '100%', padding: '18px', 
-            background: isTemaA ? 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-            color: isTemaA ? '#000000' : 'white', 
+            background: 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+            color: '#000000', 
             textAlign: 'center', textDecoration: 'none', borderRadius: '14px',
             fontSize: '18px', fontWeight: '900',
-            boxShadow: isTemaA ? '0 4px 20px rgba(249,115,22,0.4)' : '0 4px 20px rgba(249,115,22,0.3)',
+            boxShadow: '0 4px 20px rgba(249,115,22,0.4)',
             letterSpacing: '0.5px'
           }}>
-            👥 GESTISCI GIOCATORI
+             GESTISCI GIOCATORI
           </Link>
 
           <Link href="/statistiche" style={{
             display: 'block', width: '100%', padding: '18px', 
-            background: isTemaA ? '#fbbf24' : tema.buttonSecondary,
-            color: isTemaA ? '#000000' : 'white',
+            background: '#fbbf24',
+            color: '#000000',
             textAlign: 'center', textDecoration: 'none', borderRadius: '14px',
             fontSize: '18px', fontWeight: '900',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            boxShadow: '0 4px 20px rgba(251,191,36,0.3)',
             letterSpacing: '0.5px'
           }}>
              STATISTICHE
@@ -167,11 +164,11 @@ export default function Dashboard() {
 
           <Link href="/nuova-gara" style={{
             display: 'block', width: '100%', padding: '18px', 
-            background: isTemaA ? '#ffffff' : tema.success,
-            color: isTemaA ? '#000000' : 'white',
+            background: '#ffffff',
+            color: '#000000',
             textAlign: 'center', textDecoration: 'none', borderRadius: '14px',
             fontSize: '18px', fontWeight: '900',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            boxShadow: '0 4px 20px rgba(255,255,255,0.2)',
             letterSpacing: '0.5px'
           }}>
             + CREA NUOVA PARTITA
@@ -183,7 +180,7 @@ export default function Dashboard() {
             color: tema.textPrimary,
             textAlign: 'center', textDecoration: 'none', borderRadius: '14px',
             fontSize: '16px', fontWeight: 'bold',
-            border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.2)'}`,
+            border: '1px solid rgba(249,115,22,0.3)',
             backdropFilter: 'blur(10px)'
           }}>
              ISTRUZIONI PER I MISTER
@@ -206,8 +203,8 @@ export default function Dashboard() {
           <div style={{ textAlign: 'center', padding: '60px', color: tema.textSecondary }}>
             <div style={{
               width: '50px', height: '50px',
-              border: `3px solid ${isTemaA ? '#262626' : 'rgba(255,255,255,0.1)'}`,
-              borderTop: `3px solid ${tema.accent1}`,
+              border: '3px solid #262626',
+              borderTop: '3px solid #f97316',
               borderRadius: '50%',
               margin: '0 auto 20px',
               animation: 'spin 1s linear infinite'
@@ -268,10 +265,10 @@ export default function Dashboard() {
                   {hasStats && (
                     <div style={{ 
                       padding: '15px', 
-                      background: isTemaA ? 'rgba(249,115,22,0.08)' : 'rgba(30,58,138,0.08)', 
+                      background: 'rgba(249,115,22,0.08)', 
                       borderRadius: '12px', 
                       marginBottom: '12px',
-                      border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)'}`
+                      border: '1px solid rgba(249,115,22,0.2)'
                     }}>
                       <div style={{ 
                         display: 'flex', 
@@ -279,7 +276,7 @@ export default function Dashboard() {
                         alignItems: 'center',
                         marginBottom: '10px',
                         paddingBottom: '10px',
-                        borderBottom: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)'}`
+                        borderBottom: '1px solid rgba(249,115,22,0.2)'
                       }}>
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '11px', color: tema.accent1, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>PSG</div>
@@ -315,13 +312,11 @@ export default function Dashboard() {
                   
                   <Link href={`/gara/${gara.id}`} style={{
                     display: 'block', width: '100%', padding: '14px', 
-                    background: isTemaA 
-                      ? 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)' 
-                      : 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
-                    color: isTemaA ? '#000000' : 'white', 
+                    background: 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+                    color: '#000000', 
                     textAlign: 'center', textDecoration: 'none', borderRadius: '12px',
                     fontSize: '16px', fontWeight: '900',
-                    boxShadow: isTemaA ? '0 4px 15px rgba(249,115,22,0.4)' : '0 4px 15px rgba(59,130,246,0.4)',
+                    boxShadow: '0 4px 15px rgba(249,115,22,0.4)',
                     letterSpacing: '0.5px'
                   }}>
                     ⚽ APRI PARTITA
