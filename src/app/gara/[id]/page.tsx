@@ -65,23 +65,17 @@ export default function GaraPage() {
   }, [id])
 
   const caricaDatiTempo = async (tempo: number) => {
-    console.log('Caricamento dati per tempo:', tempo)
     try {
       // Carica formazione del tempo
-      const { data: formazioni, error: formError } = await supabase
+      const { data: formazioni } = await supabase
         .from('formazioni')
         .select('giocatore_id')
         .eq('gara_id', id)
         .eq('numero_tempo', tempo)
         .eq('titolare', true)
       
-      if (formError) {
-        console.error('Errore formazioni:', formError)
-      }
-      
       if (formazioni) {
         setTitolariIds(new Set(formazioni.map(f => f.giocatore_id)))
-        console.log('Titolari caricati:', formazioni.length)
       } else {
         setTitolariIds(new Set())
       }
@@ -95,7 +89,6 @@ export default function GaraPage() {
         .single()
       
       if (tempoError) {
-        console.log('Tempo non esiste ancora, resetto i dati')
         setPlayerStats({})
         setPlayerMinutes({})
         setSostituzioni([])
@@ -103,15 +96,10 @@ export default function GaraPage() {
       }
       
       if (tempoData) {
-        // Carica azioni gioco
-        const { data: azioni, error: azioniError } = await supabase
+        const { data: azioni } = await supabase
           .from('azioni_gioco')
           .select('*')
           .eq('tempo_id', tempoData.id)
-        
-        if (azioniError) {
-          console.error('Errore azioni:', azioniError)
-        }
         
         if (azioni) {
           const stats: Record<string, {goals: number, assists: number, shots: number, shotsAgainst: number, goalsAgainst: number}> = {}
@@ -125,13 +113,11 @@ export default function GaraPage() {
             }
           })
           setPlayerStats(stats)
-          console.log('Statistiche caricate:', Object.keys(stats).length)
         } else {
           setPlayerStats({})
         }
         
-        // Carica minuti giocati
-        const { data: minutiData, error: minutiError } = await supabase
+        const { data: minutiData } = await supabase
           .from('minuti_giocati')
           .select('*')
           .eq('gara_id', id)
@@ -145,8 +131,7 @@ export default function GaraPage() {
           setPlayerMinutes({})
         }
         
-        // Carica sostituzioni
-        const { data: subsData, error: subsError } = await supabase
+        const { data: subsData } = await supabase
           .from('sostituzioni')
           .select('*')
           .eq('gara_id', id)
@@ -155,7 +140,6 @@ export default function GaraPage() {
         
         if (subsData) {
           setSostituzioni(subsData)
-          console.log('Sostituzioni caricate:', subsData.length)
         } else {
           setSostituzioni([])
         }
@@ -166,7 +150,6 @@ export default function GaraPage() {
   }
 
   const cambiaTempo = async (tempo: number) => {
-    console.log('Cambio tempo:', tempo)
     setCurrentPeriod(tempo)
     await caricaDatiTempo(tempo)
   }
@@ -481,13 +464,55 @@ export default function GaraPage() {
           </button>
         </div>
 
-        {/* PORTIERI */}
-        {portieri.length > 0 && (
-          <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>
-              🧤 PORTIERI {currentPeriod}° TEMPO
+        {/* SEZIONE FORMAZIONE - SEMPRE VISIBILE */}
+        <div style={{ marginBottom: '30px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
+            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
+               TITOLARI {currentPeriod}° TEMPO ({titolari.length})
             </h2>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Link href={`/formazione/${id}`} style={{
+                padding: '10px 15px', background: '#8b5cf6', color: 'white',
+                borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
+              }}>👥 Formazione</Link>
+              <button onClick={() => setShowSubModal(true)} style={{
+                padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
+                borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+              }}>🔄 Sostituzione</button>
+            </div>
+          </div>
+
+          {titolari.length === 0 ? (
+            <div style={{ 
+              padding: '30px', 
+              background: '#fef3c7', 
+              borderRadius: '12px', 
+              textAlign: 'center',
+              border: '2px solid #fbbf24'
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#92400e', marginBottom: '10px' }}>
+                Nessun titolare selezionato
+              </div>
+              <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '20px' }}>
+                Clicca il pulsante qui sotto per scegliere i titolari del {currentPeriod}° tempo
+              </div>
+              <Link href={`/formazione/${id}`} style={{
+                display: 'inline-block',
+                padding: '15px 30px',
+                background: '#8b5cf6',
+                color: 'white',
+                textDecoration: 'none',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}>
+                👥 SELEZIONA FORMAZIONE
+              </Link>
+            </div>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* PORTIERI */}
               {portieri.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
@@ -539,7 +564,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: '#fecaca', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold' }}>⚽ GOL SUBITI</div>
+                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold' }}> GOL SUBITI</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#991b1b', lineHeight: 1, marginBottom: '6px' }}>{stats.goalsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goalsAgainst', -1)} style={{
@@ -556,7 +581,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}> RETI</div>
+                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}>⚽ RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a', lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
@@ -587,30 +612,8 @@ export default function GaraPage() {
                   </div>
                 )
               })}
-            </div>
-          </div>
-        )}
 
-        {/* GIOCATORI DI MOVIMENTO */}
-        {giocatoriDiMovimento.length > 0 && (
-          <div style={{ marginBottom: '30px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
-              <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
-                ⚽ GIOCATORI {currentPeriod}° TEMPO ({giocatoriDiMovimento.length})
-              </h2>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Link href={`/formazione/${id}`} style={{
-                  padding: '10px 15px', background: '#8b5cf6', color: 'white',
-                  borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
-                }}>👥 Formazione</Link>
-                <button onClick={() => setShowSubModal(true)} style={{
-                  padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
-                  borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
-                }}>🔄 Sostituzione</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* GIOCATORI DI MOVIMENTO */}
               {giocatoriDiMovimento.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
@@ -662,7 +665,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>️ ASSIST</div>
+                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>🅰️ ASSIST</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2563eb', lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
@@ -694,8 +697,8 @@ export default function GaraPage() {
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* PANCHINA */}
         {panchina.length > 0 && (
@@ -737,13 +740,13 @@ export default function GaraPage() {
                   }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '4px' }}><strong>{sub.minuto_sostituzione}'</strong></div>
-                      <div style={{ fontSize: '14px', color: '#dc2626' }}>❌ {uscente?.nome_completo || 'Sconosciuto'}</div>
+                      <div style={{ fontSize: '14px', color: '#dc2626' }}> {uscente?.nome_completo || 'Sconosciuto'}</div>
                       <div style={{ fontSize: '14px', color: '#16a34a' }}>✅ {entrante?.nome_completo || 'Sconosciuto'}</div>
                     </div>
                     <button onClick={() => rimuoviSostituzione(index)} style={{
                       padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none',
                       borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold'
-                    }}>️</button>
+                    }}>🗑️</button>
                   </div>
                 )
               })}
@@ -776,7 +779,7 @@ export default function GaraPage() {
               </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Minuto ⏱️</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Minuto ️</label>
               <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)} placeholder="es. 15" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }} />
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
