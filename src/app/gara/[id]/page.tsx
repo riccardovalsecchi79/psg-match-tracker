@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import { getTema, TEMI } from '@/lib/theme'
 
 export default function GaraPage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
   const supabase = createClient()
+  const [tema, setTema] = useState(TEMI.home)
   
   const [players, setPlayers] = useState<any[]>([])
   const [titolariIds, setTitolariIds] = useState<Set<string>>(new Set())
@@ -32,6 +34,8 @@ export default function GaraPage() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
+    setTema(getTema())
+    
     const loadData = async () => {
       const { data: match } = await supabase
         .from('gare')
@@ -66,7 +70,6 @@ export default function GaraPage() {
 
   const caricaDatiTempo = async (tempo: number) => {
     try {
-      // Carica formazione del tempo
       const { data: formazioni } = await supabase
         .from('formazioni')
         .select('giocatore_id')
@@ -80,7 +83,6 @@ export default function GaraPage() {
         setTitolariIds(new Set())
       }
 
-      // Carica tempo gara
       const { data: tempoData, error: tempoError } = await supabase
         .from('tempi_gara')
         .select('*')
@@ -350,7 +352,7 @@ export default function GaraPage() {
   }
 
   const eliminaPartita = async () => {
-    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
+    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
       return
     }
     setDeleting(true)
@@ -369,8 +371,8 @@ export default function GaraPage() {
     switch (ruolo) {
       case 'P': return '🧤'
       case 'D': return '🛡️'
-      case 'C': return '🎽'
-      case 'A': return '🎯'
+      case 'C': return ''
+      case 'A': return ''
       default: return ''
     }
   }
@@ -379,18 +381,20 @@ export default function GaraPage() {
   const panchina = players.filter(p => !titolariIds.has(p.id))
   const portieri = titolari.filter(p => p.ruolo === 'P')
   const giocatoriDiMovimento = titolari.filter(p => p.ruolo !== 'P')
+  const isTemaA = tema.nomeTema === 'A'
+  const isTemaB = tema.nomeTema === 'B'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f1f5f9', paddingBottom: '120px' }}>
-      {/* HEADER FISSO */}
+    <div style={{ minHeight: '100vh', background: tema.background, paddingBottom: '120px' }}>
       <div style={{
-        position: 'sticky', top: 0, background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-        color: 'white', padding: '15px', zIndex: 100, boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        position: 'sticky', top: 0, background: tema.gradientHeader,
+        color: 'white', padding: '15px', zIndex: 100, boxShadow: tema.shadow,
+        border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.2)'}`
       }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
           <Link href="/dashboard" style={{
             display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '8px 14px', background: 'rgba(255,255,255,0.2)',
+            padding: '8px 14px', background: 'rgba(255,255,255,0.15)',
             color: 'white', textDecoration: 'none', borderRadius: '8px',
             fontSize: '14px', fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.3)'
           }}>
@@ -405,8 +409,8 @@ export default function GaraPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
           {[1, 2, 3, 4].map(p => (
             <button key={p} onClick={() => cambiaTempo(p)} style={{
-              padding: '12px 8px', background: currentPeriod === p ? '#f97316' : 'rgba(255,255,255,0.2)',
-              color: 'white', border: currentPeriod === p ? '2px solid white' : '2px solid transparent',
+              padding: '12px 8px', background: currentPeriod === p ? tema.accent1 : 'rgba(255,255,255,0.15)',
+              color: 'white', border: currentPeriod === p ? `2px solid ${tema.accent2}` : '2px solid transparent',
               borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold'
             }}>{p}°</button>
           ))}
@@ -415,23 +419,22 @@ export default function GaraPage() {
 
       <div style={{ padding: '15px', maxWidth: '600px', margin: '0 auto' }}>
         
-        {/* TABELLINO AUTOMATICO */}
-        <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', marginBottom: '10px', fontWeight: 'bold' }}>
-            TABELLINO {currentPeriod}° TEMPO (aggiornamento automatico)
+        <div style={{ background: tema.backgroundCard, borderRadius: '16px', padding: '20px', marginBottom: '20px', boxShadow: tema.shadow, border: `1px solid ${tema.borderCard}` }}>
+          <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard, textAlign: 'center', marginBottom: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>
+            TABELLINO {currentPeriod}° TEMPO
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#1e3a8a', marginBottom: '5px', fontWeight: 'bold' }}>PSG</div>
-              <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>{tabellino.golPSG}</div>
-              <div style={{ fontSize: '14px', color: '#f97316', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: tema.accent1, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>PSG</div>
+              <div style={{ fontSize: '48px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1 }}>{tabellino.golPSG}</div>
+              <div style={{ fontSize: '14px', color: tema.accent1, marginTop: '8px', fontWeight: 'bold' }}>
                 Tiri: <strong>{tabellino.tiriPSG}</strong>
               </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#dc2626', marginBottom: '5px', fontWeight: 'bold' }}>OSPITE</div>
-              <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>{tabellino.golSubiti}</div>
-              <div style={{ fontSize: '14px', color: '#dc2626', marginTop: '8px' }}>
+              <div style={{ fontSize: '14px', color: tema.danger, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>OSPITE</div>
+              <div style={{ fontSize: '48px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1 }}>{tabellino.golSubiti}</div>
+              <div style={{ fontSize: '14px', color: tema.danger, marginTop: '8px', fontWeight: 'bold' }}>
                 Tiri: <strong>{tabellino.tiriSubiti}</strong>
               </div>
             </div>
@@ -439,36 +442,36 @@ export default function GaraPage() {
         </div>
 
         <button onClick={saveToDatabase} disabled={saving} style={{
-          width: '100%', padding: '20px', background: saved ? '#22c55e' : saving ? '#94a3b8' : '#1e3a8a',
-          color: 'white', border: 'none', borderRadius: '12px', fontSize: '20px', fontWeight: 'bold',
+          width: '100%', padding: '20px', background: saved ? tema.success : saving ? '#64748b' : tema.buttonPrimary,
+          color: saved ? 'white' : tema.buttonPrimaryText, border: 'none', borderRadius: '12px', fontSize: '20px', fontWeight: '900',
           cursor: saving ? 'not-allowed' : 'pointer', marginBottom: '20px',
-          boxShadow: '0 4px 12px rgba(30, 58, 138, 0.3)'
+          boxShadow: saved ? '0 4px 12px rgba(34,197,94,0.4)' : tema.shadow,
+          letterSpacing: '0.5px'
         }}>
           {saving ? '⏳ SALVATAGGIO...' : saved ? '✅ SALVATO!' : '💾 SALVA PARTITA'}
         </button>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           <button onClick={() => setShowEditModal(true)} style={{
-            flex: 1, padding: '15px', background: '#3b82f6', color: 'white',
+            flex: 1, padding: '15px', background: tema.info, color: 'white',
             border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
             ✏️ MODIFICA
           </button>
           <button onClick={() => setShowDeleteModal(true)} style={{
-            flex: 1, padding: '15px', background: '#dc2626', color: 'white',
+            flex: 1, padding: '15px', background: tema.danger, color: 'white',
             border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            🗑️ ELIMINA
+            ️ ELIMINA
           </button>
         </div>
 
-        {/* SEZIONE FORMAZIONE - SEMPRE VISIBILE */}
         <div style={{ marginBottom: '30px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '8px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', margin: 0 }}>
-               TITOLARI {currentPeriod}° TEMPO ({titolari.length})
+            <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', margin: 0 }}>
+               TITOLARI {currentPeriod}° ({titolari.length})
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <Link href={`/formazione/${id}`} style={{
@@ -476,7 +479,7 @@ export default function GaraPage() {
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
               }}>👥 Formazione</Link>
               <button onClick={() => setShowSubModal(true)} style={{
-                padding: '10px 15px', background: '#f97316', color: 'white', border: 'none',
+                padding: '10px 15px', background: tema.accent1, color: tema.buttonPrimaryText, border: 'none',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
               }}>🔄 Sostituzione</button>
             </div>
@@ -485,90 +488,89 @@ export default function GaraPage() {
           {titolari.length === 0 ? (
             <div style={{ 
               padding: '30px', 
-              background: '#fef3c7', 
+              background: isTemaA ? 'rgba(249,115,22,0.1)' : 'rgba(251,191,36,0.1)', 
               borderRadius: '12px', 
               textAlign: 'center',
-              border: '2px solid #fbbf24'
+              border: `2px solid ${tema.accent1}`
             }}>
               <div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#92400e', marginBottom: '10px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: tema.textOnCard, marginBottom: '10px' }}>
                 Nessun titolare selezionato
               </div>
-              <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard, marginBottom: '20px' }}>
                 Clicca il pulsante qui sotto per scegliere i titolari del {currentPeriod}° tempo
               </div>
               <Link href={`/formazione/${id}`} style={{
                 display: 'inline-block',
                 padding: '15px 30px',
-                background: '#8b5cf6',
-                color: 'white',
+                background: tema.accent1,
+                color: tema.buttonPrimaryText,
                 textDecoration: 'none',
                 borderRadius: '10px',
                 fontSize: '16px',
-                fontWeight: 'bold'
+                fontWeight: '900'
               }}>
                 👥 SELEZIONA FORMAZIONE
               </Link>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* PORTIERI */}
               {portieri.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
                 return (
                   <div key={player.id} style={{
-                    background: 'white', borderRadius: '12px', padding: '15px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0'
+                    background: tema.backgroundCard, borderRadius: '12px', padding: '15px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${tema.borderCard}`
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
-                        width: '48px', height: '48px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                        width: '48px', height: '48px', background: tema.gradientHeader,
                         color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', flexShrink: 0
+                        justifyContent: 'center', fontSize: '20px', fontWeight: '900', flexShrink: 0
                       }}>{player.numero_maglia}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{player.nome_completo}</div>
-                        <div style={{ fontSize: '14px', color: '#64748b' }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+                        <div style={{ fontSize: '18px', fontWeight: '900', color: tema.textOnCard }}>{player.nome_completo}</div>
+                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
                       </div>
                     </div>
 
-                    <div style={{ background: '#fef3c7', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
-                      <div style={{ fontSize: '12px', color: '#92400e', marginBottom: '5px', fontWeight: 'bold' }}>⏱️ MINUTI</div>
-                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#92400e', lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
+                    <div style={{ background: isTemaA ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.2)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', color: tema.accent2, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>️ MINUTI</div>
+                      <div style={{ fontSize: '32px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: 'white',
-                          color: '#92400e', border: '2px solid #92400e', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: tema.background,
+                          color: tema.accent2, border: `2px solid ${tema.accent2}`, borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>−5</button>
                         <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: '#92400e',
-                          color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: tema.accent2,
+                          color: '#000000', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>+5</button>
                       </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
-                      <div style={{ background: '#fee2e2', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#dc2626', marginBottom: '4px', fontWeight: 'bold' }}>🎯 TIRI SUBITI</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1, marginBottom: '6px' }}>{stats.shotsAgainst}</div>
+                      <div style={{ background: 'rgba(239,68,68,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI SUBITI</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shotsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shotsAgainst', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
-                            color: '#dc2626', border: '2px solid #dc2626', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
+                            color: tema.danger, border: `2px solid ${tema.danger}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'shotsAgainst', 1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: '#dc2626',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.danger,
                             color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
-                      <div style={{ background: '#fecaca', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold' }}> GOL SUBITI</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#991b1b', lineHeight: 1, marginBottom: '6px' }}>{stats.goalsAgainst}</div>
+                      <div style={{ background: 'rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: '#991b1b', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ GOL SUBITI</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goalsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goalsAgainst', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
                             color: '#991b1b', border: '2px solid #991b1b', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'goalsAgainst', 1)} style={{
@@ -580,30 +582,30 @@ export default function GaraPage() {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}>⚽ RETI</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a', lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
+                      <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
-                            color: '#16a34a', border: '2px solid #16a34a', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
+                            color: tema.success, border: `2px solid ${tema.success}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', 1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: '#16a34a',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.success,
                             color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
-                      <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>🅰️ ASSIST</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2563eb', lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
+                      <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: tema.info, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🅰️ ASSIST</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
-                            color: '#2563eb', border: '2px solid #2563eb', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
+                            color: tema.info, border: `2px solid ${tema.info}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', 1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: '#2563eb',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.info,
                             color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
@@ -613,77 +615,76 @@ export default function GaraPage() {
                 )
               })}
 
-              {/* GIOCATORI DI MOVIMENTO */}
               {giocatoriDiMovimento.map(player => {
                 const stats = playerStats[player.id] || { goals: 0, assists: 0, shots: 0, shotsAgainst: 0, goalsAgainst: 0 }
                 const minuti = playerMinutes[player.id] || 0
                 return (
                   <div key={player.id} style={{
-                    background: 'white', borderRadius: '12px', padding: '15px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0'
+                    background: tema.backgroundCard, borderRadius: '12px', padding: '15px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)', border: `1px solid ${tema.borderCard}`
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                       <div style={{
-                        width: '48px', height: '48px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                        width: '48px', height: '48px', background: tema.gradientHeader,
                         color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', flexShrink: 0
+                        justifyContent: 'center', fontSize: '20px', fontWeight: '900', flexShrink: 0
                       }}>{player.numero_maglia}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{player.nome_completo}</div>
-                        <div style={{ fontSize: '14px', color: '#64748b' }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+                        <div style={{ fontSize: '18px', fontWeight: '900', color: tema.textOnCard }}>{player.nome_completo}</div>
+                        <div style={{ fontSize: '14px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
                       </div>
                     </div>
 
-                    <div style={{ background: '#fef3c7', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
-                      <div style={{ fontSize: '12px', color: '#92400e', marginBottom: '5px', fontWeight: 'bold' }}>⏱️ MINUTI</div>
-                      <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#92400e', lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
+                    <div style={{ background: isTemaA ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.2)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', color: tema.accent2, marginBottom: '5px', fontWeight: 'bold', letterSpacing: '1px' }}>⏱️ MINUTI</div>
+                      <div style={{ fontSize: '32px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '8px' }}>{minuti}'</div>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button onClick={() => updatePlayerMinutes(player.id, -5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: 'white',
-                          color: '#92400e', border: '2px solid #92400e', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: tema.background,
+                          color: tema.accent2, border: `2px solid ${tema.accent2}`, borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>−5</button>
                         <button onClick={() => updatePlayerMinutes(player.id, 5)} style={{
-                          width: '48px', height: '48px', fontSize: '20px', background: '#92400e',
-                          color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
+                          width: '48px', height: '48px', fontSize: '20px', background: tema.accent2,
+                          color: '#000000', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold'
                         }}>+5</button>
                       </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                      <div style={{ background: '#dcfce7', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#16a34a', marginBottom: '4px', fontWeight: 'bold' }}>⚽ RETI</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a', lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
+                      <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
-                            color: '#16a34a', border: '2px solid #16a34a', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
+                            color: tema.success, border: `2px solid ${tema.success}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', 1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: '#16a34a',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.success,
                             color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
-                      <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#2563eb', marginBottom: '4px', fontWeight: 'bold' }}>🅰️ ASSIST</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2563eb', lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
+                      <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: tema.info, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🅰️ ASSIST</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.assists}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
-                            color: '#2563eb', border: '2px solid #2563eb', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
+                            color: tema.info, border: `2px solid ${tema.info}`, borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'assists', 1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: '#2563eb',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.info,
                             color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>+</button>
                         </div>
                       </div>
-                      <div style={{ background: '#fce7f3', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold' }}>🎯 TIRI</div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#db2777', lineHeight: 1, marginBottom: '6px' }}>{stats.shots}</div>
+                      <div style={{ background: 'rgba(219,39,119,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI</div>
+                        <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shots}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shots', -1)} style={{
-                            width: '36px', height: '36px', fontSize: '18px', background: 'white',
+                            width: '36px', height: '36px', fontSize: '18px', background: tema.background,
                             color: '#db2777', border: '2px solid #db2777', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
                           }}>−</button>
                           <button onClick={() => updatePlayerStat(player.id, 'shots', 1)} style={{
@@ -700,24 +701,23 @@ export default function GaraPage() {
           )}
         </div>
 
-        {/* PANCHINA */}
         {panchina.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>🪑 PANCHINA ({panchina.length})</h2>
+            <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', marginBottom: '15px' }}>🪑 PANCHINA ({panchina.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {panchina.map(player => (
                 <div key={player.id} style={{
-                  background: '#f8fafc', borderRadius: '10px', padding: '12px',
-                  border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px'
+                  background: tema.backgroundCard, borderRadius: '10px', padding: '12px',
+                  border: `1px solid ${tema.borderCard}`, display: 'flex', alignItems: 'center', gap: '12px'
                 }}>
                   <div style={{
-                    width: '40px', height: '40px', background: '#94a3b8', color: 'white',
+                    width: '40px', height: '40px', background: '#64748b', color: 'white',
                     borderRadius: '50%', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', fontSize: '18px', fontWeight: 'bold'
                   }}>{player.numero_maglia}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>{player.nome_completo}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: tema.textOnCard }}>{player.nome_completo}</div>
+                    <div style={{ fontSize: '12px', color: tema.textSecondaryOnCard }}>{getRuoloIcon(player.ruolo)} {player.ruolo}</div>
                   </div>
                 </div>
               ))}
@@ -725,26 +725,25 @@ export default function GaraPage() {
           </div>
         )}
 
-        {/* SOSTITUZIONI */}
         {sostituzioni.length > 0 && (
           <div style={{ marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '20px', color: '#1e293b', fontWeight: 'bold', marginBottom: '15px' }}>🔄 SOSTITUZIONI {currentPeriod}° TEMPO ({sostituzioni.length})</h2>
+            <h2 style={{ fontSize: '20px', color: tema.textOnCard, fontWeight: '900', marginBottom: '15px' }}>🔄 SOSTITUZIONI {currentPeriod}° ({sostituzioni.length})</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {sostituzioni.map((sub, index) => {
                 const uscente = players.find(p => p.id === sub.giocatore_uscente_id)
                 const entrante = players.find(p => p.id === sub.giocatore_entrante_id)
                 return (
                   <div key={index} style={{
-                    background: '#fff7ed', borderRadius: '10px', padding: '12px',
-                    border: '1px solid #fdba74', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    background: isTemaA ? 'rgba(249,115,22,0.1)' : 'rgba(249,115,22,0.15)', borderRadius: '10px', padding: '12px',
+                    border: `1px solid ${tema.accent1}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '14px', color: '#92400e', marginBottom: '4px' }}><strong>{sub.minuto_sostituzione}'</strong></div>
-                      <div style={{ fontSize: '14px', color: '#dc2626' }}> {uscente?.nome_completo || 'Sconosciuto'}</div>
-                      <div style={{ fontSize: '14px', color: '#16a34a' }}>✅ {entrante?.nome_completo || 'Sconosciuto'}</div>
+                      <div style={{ fontSize: '14px', color: tema.accent1, marginBottom: '4px', fontWeight: 'bold' }}><strong>{sub.minuto_sostituzione}'</strong></div>
+                      <div style={{ fontSize: '14px', color: tema.danger }}>❌ {uscente?.nome_completo || 'Sconosciuto'}</div>
+                      <div style={{ fontSize: '14px', color: tema.success }}>✅ {entrante?.nome_completo || 'Sconosciuto'}</div>
                     </div>
                     <button onClick={() => rimuoviSostituzione(index)} style={{
-                      padding: '8px 12px', background: '#dc2626', color: 'white', border: 'none',
+                      padding: '8px 12px', background: tema.danger, color: 'white', border: 'none',
                       borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold'
                     }}>🗑️</button>
                   </div>
@@ -755,86 +754,83 @@ export default function GaraPage() {
         )}
       </div>
 
-      {/* MODAL SOSTITUZIONE */}
       {showSubModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
-          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
-            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>🔄 Sostituzione {currentPeriod}° Tempo</h2>
+          <div style={{ background: tema.backgroundCard, borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflowY: 'auto', border: `1px solid ${tema.borderCard}` }}>
+            <h2 style={{ color: tema.textOnCard, fontSize: '22px', marginTop: 0, marginBottom: '20px', fontWeight: '900' }}>🔄 Sostituzione {currentPeriod}° Tempo</h2>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Giocatore che ESCE ❌</label>
-              <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Giocatore che ESCE ❌</label>
+              <select value={subUscente} onChange={(e) => setSubUscente(e.target.value)} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', background: tema.background, color: tema.textOnCard }}>
                 <option value="">-- Seleziona --</option>
                 {titolari.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Giocatore che ENTRA ✅</label>
-              <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Giocatore che ENTRA ✅</label>
+              <select value={subEntrante} onChange={(e) => setSubEntrante(e.target.value)} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', background: tema.background, color: tema.textOnCard }}>
                 <option value="">-- Seleziona --</option>
                 {panchina.map(p => <option key={p.id} value={p.id}>#{p.numero_maglia} {p.nome_completo}</option>)}
               </select>
             </div>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Minuto ️</label>
-              <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)} placeholder="es. 15" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px' }} />
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Minuto ⏱️</label>
+              <input type="number" min="1" max="30" step="5" value={subMinuto} onChange={(e) => setSubMinuto(e.target.value)} placeholder="es. 15" style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', background: tema.background, color: tema.textOnCard }} />
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { setShowSubModal(false); setSubUscente(''); setSubEntrante(''); setSubMinuto('') }} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
-              <button onClick={aggiungiSostituzione} style={{ flex: 2, padding: '14px', background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>✓ Conferma</button>
+              <button onClick={() => { setShowSubModal(false); setSubUscente(''); setSubEntrante(''); setSubMinuto('') }} style={{ flex: 1, padding: '14px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={aggiungiSostituzione} style={{ flex: 2, padding: '14px', background: tema.accent1, color: tema.buttonPrimaryText, border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>✓ Conferma</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL MODIFICA */}
       {showEditModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
-          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
-            <h2 style={{ color: '#1e3a8a', fontSize: '22px', marginTop: 0, marginBottom: '20px' }}>✏️ Modifica Partita</h2>
+          <div style={{ background: tema.backgroundCard, borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%', border: `1px solid ${tema.borderCard}` }}>
+            <h2 style={{ color: tema.textOnCard, fontSize: '22px', marginTop: 0, marginBottom: '20px', fontWeight: '900' }}>✏️ Modifica Partita</h2>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Avversario *</label>
-              <input type="text" value={editForm.avversario} onChange={(e) => setEditForm({...editForm, avversario: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Avversario *</label>
+              <input type="text" value={editForm.avversario} onChange={(e) => setEditForm({...editForm, avversario: e.target.value})} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', background: tema.background, color: tema.textOnCard }} />
             </div>
             <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Luogo</label>
-              <input type="text" value={editForm.luogo} onChange={(e) => setEditForm({...editForm, luogo: e.target.value})} placeholder="es. Campo Comunale" style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Luogo</label>
+              <input type="text" value={editForm.luogo} onChange={(e) => setEditForm({...editForm, luogo: e.target.value})} placeholder="es. Campo Comunale" style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', background: tema.background, color: tema.textOnCard }} />
             </div>
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#1e293b' }}>Data *</label>
-              <input type="date" value={editForm.data_gara} onChange={(e) => setEditForm({...editForm, data_gara: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box' }} />
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: tema.textOnCard }}>Data *</label>
+              <input type="date" value={editForm.data_gara} onChange={(e) => setEditForm({...editForm, data_gara: e.target.value})} style={{ width: '100%', padding: '12px', border: `1px solid ${tema.borderCard}`, borderRadius: '8px', fontSize: '16px', boxSizing: 'border-box', background: tema.background, color: tema.textOnCard }} />
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
-              <button onClick={salvaModifiche} style={{ flex: 2, padding: '14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>💾 SALVA MODIFICHE</button>
+              <button onClick={() => setShowEditModal(false)} style={{ flex: 1, padding: '14px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={salvaModifiche} style={{ flex: 2, padding: '14px', background: tema.info, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' }}>💾 SALVA MODIFICHE</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL ELIMINA */}
       {showDeleteModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 1000, padding: '20px'
         }}>
-          <div style={{ background: 'white', borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%' }}>
-            <h2 style={{ color: '#dc2626', fontSize: '22px', marginTop: 0, marginBottom: '15px' }}>⚠️ Elimina Partita</h2>
-            <p style={{ color: '#64748b', fontSize: '16px', marginBottom: '20px', lineHeight: '1.5' }}>
+          <div style={{ background: tema.backgroundCard, borderRadius: '16px', padding: '25px', maxWidth: '500px', width: '100%', border: `1px solid ${tema.borderCard}` }}>
+            <h2 style={{ color: tema.danger, fontSize: '22px', marginTop: 0, marginBottom: '15px', fontWeight: '900' }}>⚠️ Elimina Partita</h2>
+            <p style={{ color: tema.textSecondaryOnCard, fontSize: '16px', marginBottom: '20px', lineHeight: '1.5' }}>
               Questa azione eliminerà <strong>definitivamente</strong> la partita e tutte le statistiche associate.
             </p>
-            <p style={{ color: '#dc2626', fontWeight: 'bold', marginBottom: '20px' }}>Questa azione NON può essere annullata.</p>
+            <p style={{ color: tema.danger, fontWeight: 'bold', marginBottom: '20px' }}>Questa azione NON può essere annullata.</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ flex: 1, padding: '14px', background: '#e2e8f0', color: '#1e293b', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>Annulla</button>
-              <button onClick={eliminaPartita} disabled={deleting} style={{ flex: 2, padding: '14px', background: deleting ? '#94a3b8' : '#dc2626', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? '⏳ ELIMINAZIONE...' : '🗑️ ELIMINA DEFINITIVAMENTE'}</button>
+              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ flex: 1, padding: '14px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>Annulla</button>
+              <button onClick={eliminaPartita} disabled={deleting} style={{ flex: 2, padding: '14px', background: deleting ? '#64748b' : tema.danger, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? '⏳ ELIMINAZIONE...' : '🗑️ ELIMINA DEFINITIVAMENTE'}</button>
             </div>
           </div>
         </div>
