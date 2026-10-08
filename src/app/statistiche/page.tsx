@@ -64,10 +64,7 @@ export default function StatistichePage() {
 
       if (giocatoriData) {
         const statsPromises = giocatoriData.map(async (g: any) => {
-          // ============================================
-          // PARTITE DA TITOLARE
-          // Raggruppa per gara_id per evitare duplicati
-          // ============================================
+          // PARTITE DA TITOLARE: conta DISTINCT gara_id
           const { data: formazioniData } = await supabase
             .from('formazioni')
             .select('gara_id')
@@ -77,10 +74,7 @@ export default function StatistichePage() {
           const partiteUniche = new Set(formazioniData?.map(f => f.gara_id) || [])
           const partiteCount = partiteUniche.size
 
-          // ============================================
-          // GOL, ASSIST, TIRI
-          // Raggruppa per (gara_id, numero_tempo) e prendi il MAX
-          // ============================================
+          // GOL, ASSIST, TIRI: raggruppa per numero_tempo, prendi MAX
           const { data: azioniData } = await supabase
             .from('azioni_gioco')
             .select('reti, assist, tiri, numero_tempo')
@@ -91,10 +85,6 @@ export default function StatistichePage() {
           let tiriTotali = 0
           
           if (azioniData && azioniData.length > 0) {
-            // Raggruppa per numero_tempo (all'interno della stessa partita, 
-            // ma poiché filtriamo per giocatore, prendiamo il max per sicurezza)
-            // In realtà, poiché ogni record ha un tempo_id diverso ma stesso numero_tempo 
-            // potrebbe essere duplicato, raggruppiamo per numero_tempo
             const azioniPerTempo: Record<number, {reti: number, assist: number, tiri: number}> = {}
             
             azioniData.forEach(a => {
@@ -102,13 +92,11 @@ export default function StatistichePage() {
               if (!azioniPerTempo[tempo]) {
                 azioniPerTempo[tempo] = { reti: 0, assist: 0, tiri: 0 }
               }
-              // Prendi il MAX in caso di duplicati
               azioniPerTempo[tempo].reti = Math.max(azioniPerTempo[tempo].reti, a.reti || 0)
               azioniPerTempo[tempo].assist = Math.max(azioniPerTempo[tempo].assist, a.assist || 0)
               azioniPerTempo[tempo].tiri = Math.max(azioniPerTempo[tempo].tiri, a.tiri || 0)
             })
             
-            // Somma i valori di ogni tempo
             Object.values(azioniPerTempo).forEach(a => {
               golTotali += a.reti
               assistTotali += a.assist
@@ -116,10 +104,7 @@ export default function StatistichePage() {
             })
           }
 
-          // ============================================
-          // MINUTI GIOCATI
-          // Raggruppa per (gara_id, numero_tempo) e prendi il MAX
-          // ============================================
+          // MINUTI: raggruppa per (gara_id, numero_tempo), prendi MAX
           const { data: minutiData } = await supabase
             .from('minuti_giocati')
             .select('minuti, numero_tempo, gara_id')
@@ -128,7 +113,6 @@ export default function StatistichePage() {
           let minutiTotali = 0
           
           if (minutiData && minutiData.length > 0) {
-            // Raggruppa per (gara_id, numero_tempo) - chiave unica per ogni tempo di ogni partita
             const minutiPerTempo: Record<string, number> = {}
             
             minutiData.forEach(m => {
@@ -136,11 +120,9 @@ export default function StatistichePage() {
               if (!minutiPerTempo[key]) {
                 minutiPerTempo[key] = 0
               }
-              // Prendi il MAX in caso di duplicati
               minutiPerTempo[key] = Math.max(minutiPerTempo[key], m.minuti || 0)
             })
             
-            // Somma i minuti di ogni tempo
             minutiTotali = Object.values(minutiPerTempo).reduce((sum, m) => sum + m, 0)
           }
 
