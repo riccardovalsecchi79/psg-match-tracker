@@ -51,7 +51,6 @@ export default function Home() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Effetto glow di sfondo */}
       <div style={{
         position: 'fixed',
         top: '-50%',
@@ -75,7 +74,6 @@ export default function Home() {
 
       <div style={{ maxWidth: '800px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
         
-        {/* Header */}
         <div style={{ 
           textAlign: 'center', 
           marginBottom: '40px',
@@ -95,13 +93,13 @@ export default function Home() {
             P.S.G. MOLTENO BRONGIO
           </div>
           <h1 style={{ 
-            fontSize: '36px', 
+            fontSize: '40px', 
             margin: '0 0 10px 0',
             color: '#ffffff',
             fontWeight: '900',
             letterSpacing: '-1px'
           }}>
-            Match Tracker
+            Statino Partite
           </h1>
           <p style={{ 
             margin: 0, 
@@ -121,7 +119,6 @@ export default function Home() {
           }} />
         </div>
 
-        {/* Lista Squadre */}
         {loading ? (
           <div style={{ 
             textAlign: 'center', 
@@ -192,7 +189,6 @@ export default function Home() {
                     e.currentTarget.style.background = '#141414'
                   }}
                 >
-                  {/* Icona squadra con tema */}
                   <div style={{
                     width: '64px',
                     height: '64px',
@@ -215,7 +211,6 @@ export default function Home() {
                     {squadra.nome_squadra.split(' ').pop()}
                   </div>
                   
-                  {/* Info squadra */}
                   <div style={{ flex: 1 }}>
                     <div style={{ 
                       fontSize: '22px', 
@@ -240,7 +235,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Freccia */}
                   <div style={{ 
                     fontSize: '28px', 
                     color: borderColor,
@@ -255,7 +249,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Footer */}
         <div style={{
           textAlign: 'center',
           marginTop: '40px',
