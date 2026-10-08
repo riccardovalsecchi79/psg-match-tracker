@@ -15,20 +15,13 @@ interface Gara {
   risultato_ospite: number
 }
 
-interface TempiGara {
-  id: string
-  numero_tempo: number
-  tiri_effettuati: number
-  tiri_subiti: number
-}
-
 export default function Dashboard() {
   const router = useRouter()
   const supabase = createClient()
   
   const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
   const [gare, setGare] = useState<Gara[]>([])
-  const [tiriPerGara, setTiriPerGara] = useState<Record<string, { effettuati: number, subiti: number }>>({})
+  const [statsPerGara, setStatsPerGara] = useState<Record<string, { golCasa: number, golOspite: number, tiriEffettuati: number, tiriSubiti: number }>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -49,25 +42,33 @@ export default function Dashboard() {
       if (!error && data) {
         setGare(data as Gara[])
         
-        // Carica tiri totali per ogni gara
-        const tiriMap: Record<string, { effettuati: number, subiti: number }> = {}
+        // Calcola gol e tiri totali sommando tutti i tempi di ogni gara
+        const statsMap: Record<string, { golCasa: number, golOspite: number, tiriEffettuati: number, tiriSubiti: number }> = {}
+        
         for (const gara of data as Gara[]) {
           const { data: tempi } = await supabase
             .from('tempi_gara')
-            .select('tiri_effettuati, tiri_subiti')
+            .select('risultato_casa, risultato_ospite, tiri_effettuati, tiri_subiti')
             .eq('gara_id', gara.id)
           
+          let golCasa = 0
+          let golOspite = 0
           let tiriEffettuati = 0
           let tiriSubiti = 0
+          
           if (tempi) {
             tempi.forEach(t => {
+              golCasa += t.risultato_casa || 0
+              golOspite += t.risultato_ospite || 0
               tiriEffettuati += t.tiri_effettuati || 0
               tiriSubiti += t.tiri_subiti || 0
             })
           }
-          tiriMap[gara.id] = { effettuati: tiriEffettuati, subiti: tiriSubiti }
+          
+          statsMap[gara.id] = { golCasa, golOspite, tiriEffettuati, tiriSubiti }
         }
-        setTiriPerGara(tiriMap)
+        
+        setStatsPerGara(statsMap)
       }
       setLoading(false)
     }
@@ -126,7 +127,7 @@ export default function Dashboard() {
           fontSize: '18px', fontWeight: 'bold', marginBottom: '10px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
-           STATISTICHE
+          📊 STATISTICHE
         </Link>
 
         <Link href="/nuova-gara" style={{
@@ -151,7 +152,9 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {gare.map(gara => {
               const badge = getStatoBadge(gara.stato)
-              const tiri = tiriPerGara[gara.id] || { effettuati: 0, subiti: 0 }
+              const stats = statsPerGara[gara.id] || { golCasa: 0, golOspite: 0, tiriEffettuati: 0, tiriSubiti: 0 }
+              const hasStats = stats.golCasa > 0 || stats.golOspite > 0 || stats.tiriEffettuati > 0 || stats.tiriSubiti > 0
+              
               return (
                 <div key={gara.id} style={{
                   background: 'white', borderRadius: '10px', padding: '20px',
@@ -166,8 +169,8 @@ export default function Dashboard() {
                     {gara.luogo && <div>📍 {gara.luogo}</div>}
                   </div>
                   
-                  {/* TABELLINO COMPLETO */}
-                  {(gara.stato === 'terminata' || gara.risultato_casa > 0 || gara.risultato_ospite > 0 || tiri.effettuati > 0 || tiri.subiti > 0) && (
+                  {/* TABELLINO COMPLETO CON GOL E TIRI SOMMATI DAI TEMPI */}
+                  {hasStats && (
                     <div style={{ 
                       padding: '15px', 
                       background: '#f8fafc', 
@@ -175,7 +178,7 @@ export default function Dashboard() {
                       marginBottom: '10px',
                       border: '1px solid #e2e8f0'
                     }}>
-                      {/* Risultato */}
+                      {/* Risultato gol */}
                       <div style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
@@ -187,14 +190,14 @@ export default function Dashboard() {
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>PSG</div>
                           <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#1e3a8a', lineHeight: 1 }}>
-                            {gara.risultato_casa}
+                            {stats.golCasa}
                           </div>
                         </div>
                         <div style={{ fontSize: '24px', color: '#94a3b8', fontWeight: 'bold' }}>-</div>
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>OSPITE</div>
                           <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#dc2626', lineHeight: 1 }}>
-                            {gara.risultato_ospite}
+                            {stats.golOspite}
                           </div>
                         </div>
                       </div>
@@ -208,13 +211,13 @@ export default function Dashboard() {
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>TIRI</div>
                           <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f97316' }}>
-                            {tiri.effettuati}
+                            {stats.tiriEffettuati}
                           </div>
                         </div>
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>TIRI SUBITI</div>
                           <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc2626' }}>
-                            {tiri.subiti}
+                            {stats.tiriSubiti}
                           </div>
                         </div>
                       </div>
@@ -226,7 +229,7 @@ export default function Dashboard() {
                     color: 'white', textAlign: 'center', textDecoration: 'none', borderRadius: '8px',
                     fontSize: '16px', fontWeight: 'bold'
                   }}>
-                     APRI PARTITA
+                    ⚽ APRI PARTITA
                   </Link>
                 </div>
               )
