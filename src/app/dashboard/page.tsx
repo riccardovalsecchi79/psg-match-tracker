@@ -84,9 +84,9 @@ export default function Dashboard() {
 
   const getStatoBadge = (stato: string) => {
     switch (stato) {
-      case 'terminata': return { bg: tema.success, text: 'FINITA' }
+      case 'terminata': return { bg: tema.success, text: 'FINITA', textColor: '#fff' }
       case 'in_corso': return { bg: tema.warning, text: 'IN CORSO', textColor: '#000' }
-      default: return { bg: tema.info, text: 'PROGRAMMATA' }
+      default: return { bg: tema.info, text: 'PROGRAMMATA', textColor: '#fff' }
     }
   }
 
@@ -102,7 +102,6 @@ export default function Dashboard() {
     <div style={{ minHeight: '100vh', background: tema.background, padding: '20px' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         
-        {/* Header */}
         <div style={{ 
           marginBottom: '25px', 
           padding: '25px', 
@@ -112,7 +111,7 @@ export default function Dashboard() {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.4)' : 'rgba(59,130,246,0.4)'}`,
+          border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.2)'}`,
           boxShadow: tema.shadow
         }}>
           <div>
@@ -141,7 +140,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Pulsanti azione */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '25px' }}>
           <Link href="/giocatori" style={{
             display: 'block', width: '100%', padding: '18px', 
@@ -164,7 +162,7 @@ export default function Dashboard() {
             boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
             letterSpacing: '0.5px'
           }}>
-            📊 STATISTICHE
+             STATISTICHE
           </Link>
 
           <Link href="/nuova-gara" style={{
@@ -185,10 +183,10 @@ export default function Dashboard() {
             color: tema.textPrimary,
             textAlign: 'center', textDecoration: 'none', borderRadius: '14px',
             fontSize: '16px', fontWeight: 'bold',
-            border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.3)' : 'rgba(59,130,246,0.3)'}`,
+            border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.2)'}`,
             backdropFilter: 'blur(10px)'
           }}>
-            📖 ISTRUZIONI PER I MISTER
+             ISTRUZIONI PER I MISTER
           </Link>
         </div>
 
@@ -201,7 +199,7 @@ export default function Dashboard() {
           alignItems: 'center',
           gap: '10px'
         }}>
-          <span style={{ color: tema.accent1 }}></span> Partite ({gare.length})
+          <span style={{ color: tema.accent1 }}>⚽</span> Partite ({gare.length})
         </h2>
 
         {loading ? (
@@ -222,11 +220,11 @@ export default function Dashboard() {
             textAlign: 'center', padding: '50px', 
             background: tema.backgroundCard, 
             borderRadius: '16px', 
-            color: tema.textSecondary,
+            color: tema.textSecondaryOnCard,
             border: `1px solid ${tema.borderCard}`
           }}>
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>📅</div>
-            <p style={{ fontSize: '18px', margin: '0 0 10px 0', color: tema.textPrimary, fontWeight: 'bold' }}>
+            <p style={{ fontSize: '18px', margin: '0 0 10px 0', color: tema.textOnCard, fontWeight: 'bold' }}>
               Nessuna partita per questa squadra
             </p>
             <p style={{ margin: 0 }}>Clicca "Crea Nuova Partita" per iniziare</p>
@@ -243,17 +241,17 @@ export default function Dashboard() {
                   background: tema.backgroundCard, 
                   borderRadius: '16px', 
                   padding: '20px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                  border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)'}`
+                  boxShadow: tema.shadow,
+                  border: `1px solid ${tema.borderCard}`
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ fontWeight: '900', fontSize: '20px', color: tema.textPrimary }}>
+                    <div style={{ fontWeight: '900', fontSize: '20px', color: tema.textOnCard }}>
                       vs {gara.avversario}
                     </div>
                     <div style={{ 
                       padding: '6px 14px', 
                       background: badge.bg, 
-                      color: (badge as any).textColor || 'white', 
+                      color: badge.textColor, 
                       borderRadius: '20px', 
                       fontSize: '11px', 
                       fontWeight: '900',
@@ -262,7 +260,7 @@ export default function Dashboard() {
                       {badge.text}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: tema.textSecondary, marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: tema.textSecondaryOnCard, marginBottom: '12px' }}>
                     <div>📅 {formatData(gara.data_gara)}</div>
                     {gara.luogo && <div>📍 {gara.luogo}</div>}
                   </div>
@@ -270,10 +268,10 @@ export default function Dashboard() {
                   {hasStats && (
                     <div style={{ 
                       padding: '15px', 
-                      background: isTemaA ? 'rgba(249,115,22,0.08)' : 'rgba(255,255,255,0.05)', 
+                      background: isTemaA ? 'rgba(249,115,22,0.08)' : 'rgba(30,58,138,0.08)', 
                       borderRadius: '12px', 
                       marginBottom: '12px',
-                      border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.1)'}`
+                      border: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)'}`
                     }}>
                       <div style={{ 
                         display: 'flex', 
@@ -281,18 +279,18 @@ export default function Dashboard() {
                         alignItems: 'center',
                         marginBottom: '10px',
                         paddingBottom: '10px',
-                        borderBottom: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.1)'}`
+                        borderBottom: `1px solid ${isTemaA ? 'rgba(249,115,22,0.2)' : 'rgba(59,130,246,0.2)'}`
                       }}>
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '11px', color: tema.accent1, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>PSG</div>
-                          <div style={{ fontSize: '40px', fontWeight: '900', color: tema.textPrimary, lineHeight: 1 }}>
+                          <div style={{ fontSize: '40px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1 }}>
                             {stats.golCasa}
                           </div>
                         </div>
-                        <div style={{ fontSize: '24px', color: tema.textSecondary, fontWeight: 'bold' }}>-</div>
+                        <div style={{ fontSize: '24px', color: tema.textSecondaryOnCard, fontWeight: 'bold' }}>-</div>
                         <div style={{ textAlign: 'center', flex: 1 }}>
                           <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>OSPITE</div>
-                          <div style={{ fontSize: '40px', fontWeight: '900', color: tema.textPrimary, lineHeight: 1 }}>
+                          <div style={{ fontSize: '40px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1 }}>
                             {stats.golOspite}
                           </div>
                         </div>
@@ -300,13 +298,13 @@ export default function Dashboard() {
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
                         <div style={{ textAlign: 'center', flex: 1 }}>
-                          <div style={{ fontSize: '10px', color: tema.textSecondary, letterSpacing: '1px' }}>TIRI</div>
+                          <div style={{ fontSize: '10px', color: tema.textSecondaryOnCard, letterSpacing: '1px' }}>TIRI</div>
                           <div style={{ fontSize: '22px', fontWeight: '900', color: tema.accent1 }}>
                             {stats.tiriEffettuati}
                           </div>
                         </div>
                         <div style={{ textAlign: 'center', flex: 1 }}>
-                          <div style={{ fontSize: '10px', color: tema.textSecondary, letterSpacing: '1px' }}>TIRI SUBITI</div>
+                          <div style={{ fontSize: '10px', color: tema.textSecondaryOnCard, letterSpacing: '1px' }}>TIRI SUBITI</div>
                           <div style={{ fontSize: '22px', fontWeight: '900', color: tema.danger }}>
                             {stats.tiriSubiti}
                           </div>
