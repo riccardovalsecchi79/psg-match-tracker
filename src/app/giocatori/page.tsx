@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import { getTema, TEMI } from '@/lib/theme'
 
 interface Giocatore {
   id: string
@@ -15,6 +16,7 @@ interface Giocatore {
 export default function GiocatoriPage() {
   const router = useRouter()
   const supabase = createClient()
+  const [tema, setTema] = useState(TEMI.team)
   
   const [squadraInfo, setSquadraInfo] = useState({ id: '', nome: '', categoria: '' })
   const [giocatori, setGiocatori] = useState<Giocatore[]>([])
@@ -22,6 +24,8 @@ export default function GiocatoriPage() {
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   useEffect(() => {
+    setTema(getTema())
+    
     const squadraId = localStorage.getItem('squadra_selezionata_id')
     const squadraNome = localStorage.getItem('squadra_selezionata_nome')
     const squadraCategoria = localStorage.getItem('squadra_selezionata_categoria')
@@ -76,7 +80,7 @@ export default function GiocatoriPage() {
 
   const getRuoloIcon = (ruolo: string) => {
     switch (ruolo) {
-      case 'P': return ''
+      case 'P': return '🧤'
       case 'D': return '🛡️'
       case 'C': return '🎽'
       case 'A': return '🎯'
@@ -95,71 +99,76 @@ export default function GiocatoriPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', background: tema.background, padding: '20px' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         
-        {/* Header */}
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          marginBottom: '20px'
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
           <Link 
             href="/dashboard"
             style={{
               marginRight: '15px',
               fontSize: '24px',
               textDecoration: 'none',
-              color: '#1e3a8a'
+              color: tema.accent1
             }}
           >
             ←
           </Link>
           <div style={{ flex: 1 }}>
-            <h1 style={{ color: '#1e3a8a', fontSize: '24px', margin: 0 }}>
+            <h1 style={{ color: tema.textPrimary, fontSize: '24px', margin: 0, fontWeight: '900' }}>
               Giocatori
             </h1>
-            <p style={{ color: '#64748b', fontSize: '14px', margin: '5px 0 0 0' }}>
+            <p style={{ color: tema.textSecondary, fontSize: '14px', margin: '5px 0 0 0' }}>
               {squadraInfo.nome} - {squadraInfo.categoria}
             </p>
           </div>
         </div>
 
-        {/* Pulsante Aggiungi */}
         <Link 
           href="/giocatori/nuovo"
           style={{
             display: 'block',
             width: '100%',
-            padding: '15px',
-            background: '#22c55e',
-            color: 'white',
+            padding: '18px',
+            background: 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+            color: '#000000',
             textAlign: 'center',
             textDecoration: 'none',
-            borderRadius: '10px',
+            borderRadius: '14px',
             fontSize: '18px',
-            fontWeight: 'bold',
+            fontWeight: '900',
             marginBottom: '20px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            boxShadow: '0 4px 20px rgba(249,115,22,0.4)',
+            letterSpacing: '0.5px'
           }}
         >
           + AGGIUNGI GIOCATORE
         </Link>
 
-        {/* Lista Giocatori */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+          <div style={{ textAlign: 'center', padding: '60px', color: tema.textSecondary }}>
+            <div style={{
+              width: '50px', height: '50px',
+              border: '3px solid #262626',
+              borderTop: '3px solid #f97316',
+              borderRadius: '50%',
+              margin: '0 auto 20px',
+              animation: 'spin 1s linear infinite'
+            }} />
             Caricamento giocatori...
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : giocatori.length === 0 ? (
           <div style={{ 
             textAlign: 'center', 
-            padding: '40px',
-            background: 'white',
-            borderRadius: '10px',
-            color: '#64748b'
+            padding: '50px',
+            background: tema.backgroundCard,
+            borderRadius: '16px',
+            color: tema.textSecondaryOnCard,
+            border: `1px solid ${tema.borderCard}`
           }}>
-            <p style={{ fontSize: '18px', margin: '0 0 10px 0' }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>👥</div>
+            <p style={{ fontSize: '18px', margin: '0 0 10px 0', color: tema.textOnCard, fontWeight: 'bold' }}>
               Nessun giocatore in rosa
             </p>
             <p style={{ margin: 0 }}>
@@ -172,64 +181,63 @@ export default function GiocatoriPage() {
               <div 
                 key={giocatore.id}
                 style={{
-                  background: 'white',
-                  borderRadius: '12px',
-                  padding: '15px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                  border: '1px solid #e2e8f0'
+                  background: tema.backgroundCard,
+                  borderRadius: '16px',
+                  padding: '20px',
+                  boxShadow: tema.shadow,
+                  border: `1px solid ${tema.borderCard}`
                 }}
               >
                 <div style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '15px',
-                  marginBottom: '12px'
+                  marginBottom: '15px'
                 }}>
                   <div style={{
                     width: '56px',
                     height: '56px',
-                    background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                    color: 'white',
+                    background: 'linear-gradient(135deg, #f97316 0%, #fbbf24 100%)',
+                    color: '#000000',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '22px',
-                    fontWeight: 'bold',
+                    fontWeight: '900',
                     flexShrink: 0
                   }}>
                     {giocatore.numero_maglia}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ 
-                      fontSize: '18px', 
-                      fontWeight: 'bold', 
-                      color: '#1e293b'
+                      fontSize: '20px', 
+                      fontWeight: '900', 
+                      color: tema.textOnCard
                     }}>
                       {giocatore.nome_completo}
                     </div>
                     <div style={{ 
                       fontSize: '14px', 
-                      color: '#64748b',
-                      marginTop: '2px'
+                      color: tema.textSecondaryOnCard,
+                      marginTop: '4px'
                     }}>
                       {getRuoloIcon(giocatore.ruolo)} {getRuoloLabel(giocatore.ruolo)}
                     </div>
                   </div>
                 </div>
 
-                {/* Pulsanti Azione */}
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <Link
                     href={`/giocatori/${giocatore.id}`}
                     style={{
                       flex: 1,
-                      padding: '10px',
-                      background: '#3b82f6',
+                      padding: '12px',
+                      background: tema.info,
                       color: 'white',
                       textAlign: 'center',
                       textDecoration: 'none',
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       fontSize: '14px',
                       fontWeight: 'bold'
                     }}
@@ -241,17 +249,17 @@ export default function GiocatoriPage() {
                     disabled={eliminandoId === giocatore.id}
                     style={{
                       flex: 1,
-                      padding: '10px',
-                      background: eliminandoId === giocatore.id ? '#94a3b8' : '#dc2626',
+                      padding: '12px',
+                      background: eliminandoId === giocatore.id ? '#64748b' : tema.danger,
                       color: 'white',
                       border: 'none',
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       fontSize: '14px',
                       fontWeight: 'bold',
                       cursor: eliminandoId === giocatore.id ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {eliminandoId === giocatore.id ? '...' : '🗑️ Elimina'}
+                    {eliminandoId === giocatore.id ? '...' : '️ Elimina'}
                   </button>
                 </div>
               </div>
@@ -259,16 +267,16 @@ export default function GiocatoriPage() {
           </div>
         )}
 
-        {/* Contatore */}
         {!loading && giocatori.length > 0 && (
           <div style={{
             textAlign: 'center',
             marginTop: '20px',
             padding: '15px',
-            background: '#dbeafe',
-            borderRadius: '10px',
-            color: '#1e40af',
-            fontWeight: 'bold'
+            background: 'rgba(249,115,22,0.1)',
+            borderRadius: '12px',
+            color: tema.accent1,
+            fontWeight: 'bold',
+            border: '1px solid rgba(249,115,22,0.3)'
           }}>
             Totale: {giocatori.length} giocatori in rosa
           </div>
