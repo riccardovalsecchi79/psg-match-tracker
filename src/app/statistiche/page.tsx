@@ -64,37 +64,60 @@ export default function StatistichePage() {
 
       if (giocatoriData) {
         const statsPromises = giocatoriData.map(async (g: any) => {
-          const { count: partiteCount } = await supabase
+          // Partite da titolare (conta DISTINCT per evitare duplicati)
+          const { data: formazioniData } = await supabase
             .from('formazioni')
-            .select('*', { count: 'exact', head: true })
+            .select('gara_id')
             .eq('giocatore_id', g.id)
             .eq('titolare', true)
+          
+          const partiteUniche = new Set(formazioniData?.map(f => f.gara_id) || [])
+          const partiteCount = partiteUniche.size
 
+          // Gol, assist, tiri (somma DISTINCT per evitare duplicati)
           const { data: azioniData } = await supabase
             .from('azioni_gioco')
-            .select('reti, assist, tiri')
+            .select('reti, assist, tiri, tempo_id')
             .eq('giocatore_id', g.id)
           
           let golTotali = 0
           let assistTotali = 0
           let tiriTotali = 0
+          
           if (azioniData) {
+            // Raggruppa per tempo_id per evitare duplicati
+            const azioniPerTempo: Record<string, any> = {}
             azioniData.forEach(a => {
+              if (!azioniPerTempo[a.tempo_id]) {
+                azioniPerTempo[a.tempo_id] = a
+              }
+            })
+            
+            Object.values(azioniPerTempo).forEach((a: any) => {
               golTotali += a.reti || 0
               assistTotali += a.assist || 0
               tiriTotali += a.tiri || 0
             })
           }
 
+          // Minuti totali (somma DISTINCT per evitare duplicati)
           const { data: minutiData } = await supabase
             .from('minuti_giocati')
-            .select('minuti')
+            .select('minuti, tempo_id')
             .eq('giocatore_id', g.id)
           
           let minutiTotali = 0
           if (minutiData) {
+            // Raggruppa per tempo_id per evitare duplicati
+            const minutiPerTempo: Record<string, number> = {}
             minutiData.forEach(m => {
-              minutiTotali += m.minuti || 0
+              if (!minutiPerTempo[m.tempo_id]) {
+                minutiPerTempo[m.tempo_id] = m.minuti || 0
+              }
+            })
+            
+            Object.values(minutiPerTempo).forEach(minuti => {
+              minutiTotali += minuti
             })
           }
 
@@ -105,7 +128,7 @@ export default function StatistichePage() {
             ruolo: g.ruolo,
             nome_squadra: g.squadre?.nome_squadra || '',
             categoria: g.squadre?.categoria || '',
-            partite_da_titolare: partiteCount || 0,
+            partite_da_titolare: partiteCount,
             gol_totali: golTotali,
             assist_totali: assistTotali,
             tiri_totali: tiriTotali,
@@ -165,7 +188,7 @@ export default function StatistichePage() {
           {[
             { key: 'gol', label: '⚽ Gol', color: '#22c55e' },
             { key: 'assist', label: '🅰️ Assist', color: '#3b82f6' },
-            { key: 'tiri', label: '🎯 Tiri', color: '#db2777' },
+            { key: 'tiri', label: ' Tiri', color: '#db2777' },
             { key: 'minuti', label: '⏱️ Min', color: '#fbbf24' },
             { key: 'partite', label: '🎽 Tit', color: '#8b5cf6' }
           ].map(item => (
@@ -192,7 +215,7 @@ export default function StatistichePage() {
           </div>
         ) : sortedStats.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '50px', background: tema.backgroundCard, borderRadius: '16px', color: tema.textSecondaryOnCard, border: `1px solid ${tema.borderCard}` }}>
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>📊</div>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}></div>
             <p style={{ fontSize: '18px', margin: '0 0 10px 0', color: tema.textOnCard, fontWeight: 'bold' }}>Nessuna statistica disponibile</p>
             <p style={{ margin: 0 }}>Le statistiche si aggiornano dopo il salvataggio di ogni partita</p>
           </div>
