@@ -67,14 +67,14 @@ export default function GaraPage() {
         // CARICA SOLO GIOCATORI DELLA STESSA ANNATA
         const annoCorrente = estraiAnno(squadraNome)
         
-        // Prima ottieni tutte le squadre della stessa annata
+        // Prima ottieni tutte le squadre della stessa annata (CORRETTO: seleziono anche nome_squadra)
         const { data: squadreCompatibili } = await supabase
           .from('squadre')
-          .select('id')
+          .select('id, nome_squadra')
         
         const idSquadreCompatibili = (squadreCompatibili || [])
-          .filter(s => estraiAnno(s.nome_squadra) === annoCorrente)
-          .map(s => s.id)
+          .filter((s: any) => estraiAnno(s.nome_squadra) === annoCorrente)
+          .map((s: any) => s.id)
         
         // Poi carica i giocatori di quelle squadre
         const { data: playersData } = await supabase
@@ -382,7 +382,7 @@ export default function GaraPage() {
   }
 
   const eliminaPartita = async () => {
-    if (!confirm('️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
+    if (!confirm('⚠️ ATTENZIONE: Questa azione eliminerà la partita e TUTTE le statistiche associate. Sei sicuro?')) {
       return
     }
     setDeleting(true)
@@ -401,8 +401,8 @@ export default function GaraPage() {
     switch (ruolo) {
       case 'P': return '🧤'
       case 'D': return '🛡️'
-      case 'C': return ''
-      case 'A': return ''
+      case 'C': return '🎽'
+      case 'A': return '🎯'
       default: return ''
     }
   }
@@ -492,7 +492,7 @@ export default function GaraPage() {
             border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold',
             cursor: 'pointer'
           }}>
-            ️ ELIMINA
+            🗑️ ELIMINA
           </button>
         </div>
 
@@ -505,7 +505,7 @@ export default function GaraPage() {
               <Link href={`/formazione/${id}`} style={{
                 padding: '10px 15px', background: '#8b5cf6', color: 'white',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', textDecoration: 'none'
-              }}> Formazione</Link>
+              }}>👥 Formazione</Link>
               <button onClick={() => setShowSubModal(true)} style={{
                 padding: '10px 15px', background: tema.accent1, color: tema.buttonPrimaryText, border: 'none',
                 borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
@@ -521,7 +521,7 @@ export default function GaraPage() {
               textAlign: 'center',
               border: `2px solid ${tema.accent1}`
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '10px' }}>️</div>
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>⚠️</div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', color: tema.textOnCard, marginBottom: '10px' }}>
                 Nessun titolare selezionato
               </div>
@@ -584,7 +584,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
                       <div style={{ background: 'rgba(239,68,68,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> TIRI SUBITI</div>
+                        <div style={{ fontSize: '11px', color: tema.danger, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI SUBITI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shotsAgainst}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shotsAgainst', -1)} style={{
@@ -688,7 +688,7 @@ export default function GaraPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                       <div style={{ background: 'rgba(34,197,94,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> RETI</div>
+                        <div style={{ fontSize: '11px', color: tema.success, marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>⚽ RETI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.goals}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'goals', -1)} style={{
@@ -716,7 +716,7 @@ export default function GaraPage() {
                         </div>
                       </div>
                       <div style={{ background: 'rgba(219,39,119,0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}> TIRI</div>
+                        <div style={{ fontSize: '11px', color: '#db2777', marginBottom: '4px', fontWeight: 'bold', letterSpacing: '1px' }}>🎯 TIRI</div>
                         <div style={{ fontSize: '28px', fontWeight: '900', color: tema.textOnCard, lineHeight: 1, marginBottom: '6px' }}>{stats.shots}</div>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button onClick={() => updatePlayerStat(player.id, 'shots', -1)} style={{
